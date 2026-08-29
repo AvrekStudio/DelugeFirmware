@@ -161,10 +161,18 @@ struct ArpNote {
 	bool isPending() {
 		return std::ranges::any_of(noteStatus, [](ArpNoteStatus status) { return status == ArpNoteStatus::PENDING; });
 	}
-	/// Whether this note is waiting to start AND actually has a note to play. Only slot 0 can be pending when the arp
-	/// is off, which is the only time notes pend in the `notes` array.
+	/// Whether any post-arp slot on this note is waiting to start AND actually has a note to play. Slot 0 is the
+	/// root note; slots 1-3 are only ever populated when the arp is off and CHORD MODE stacks extra notes onto the
+	/// same instruction (see Sound::noteOn). Each slot can independently stay pending if the voice pool was full
+	/// when it was that slot's turn to start, even after other slots on the same note already started - so every
+	/// slot must be checked, not just slot 0.
 	bool isStartablePending() {
-		return noteStatus[0] == ArpNoteStatus::PENDING && noteCodeOnPostArp[0] != ARP_NOTE_NONE;
+		for (int32_t n = 0; n < ARP_MAX_INSTRUCTION_NOTES; n++) {
+			if (noteStatus[n] == ArpNoteStatus::PENDING && noteCodeOnPostArp[n] != ARP_NOTE_NONE) {
+				return true;
+			}
+		}
+		return false;
 	}
 	void resetPostArpArrays() {
 		outputMemberChannel.fill(MIDI_CHANNEL_NONE);

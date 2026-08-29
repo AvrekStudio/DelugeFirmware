@@ -366,6 +366,20 @@ void Arpeggiator::noteOn(ArpeggiatorSettings* settings, int32_t noteCode, int32_
 		if (isPlayNoteForCurrentStep) {
 			// Play a note
 
+			// If this exact note was already being tracked (a note-on landing on a note that never got a matching
+			// note-off first - e.g. a duplicate/bounced trigger under fast playing), release whatever it was
+			// already sounding before overwriting the slots below. Otherwise any slot that had already reached
+			// PLAYING (a real voice actually started, e.g. a CHORD MODE block chord note) gets silently wiped from
+			// here with no note-off ever generated for it - Sound::noteOff can then never find it again, since this
+			// ArpNote is the only place that remembered it needed releasing, and that voice is left sounding
+			// forever.
+			if (note_exists) {
+				for (int32_t n = 0; n < ARP_MAX_INSTRUCTION_NOTES; n++) {
+					instruction->noteCodeOffPostArp[n] = arp_note->noteCodeOnPostArp[n];
+					instruction->outputMIDIChannelOff[n] = arp_note->outputMemberChannel[n];
+				}
+			}
+
 			arp_note->baseVelocity = originalVelocity;
 			// Now apply velocity spread to the base velocity
 			uint8_t velocity = calculateSpreadVelocity(originalVelocity, spreadVelocityForCurrentStep);
@@ -399,9 +413,12 @@ void Arpeggiator::noteOff(ArpeggiatorSettings* settings, int32_t noteCodePreArp,
 				arpNote->outputMemberChannel[0] = MIDI_CHANNEL_NONE;
 				arpNote->noteStatus[0] = ArpNoteStatus::OFF;
 				for (int32_t n = 1; n < ARP_MAX_INSTRUCTION_NOTES; n++) {
-					// If no arp, rest of chord notes are for sure disabled
-					instruction->noteCodeOffPostArp[n] = ARP_NOTE_NONE;
-					instruction->outputMIDIChannelOff[n] = MIDI_CHANNEL_NONE;
+					// With no arp, slots 1-3 are either untouched (ARP_NOTE_NONE already) or were set directly by
+					// Sound::noteOn for a CHORD MODE block chord - either way, carry whatever's there over so it
+					// gets turned off too, instead of assuming there's never anything to release here.
+					instruction->noteCodeOffPostArp[n] = arpNote->noteCodeOnPostArp[n];
+					instruction->outputMIDIChannelOff[n] = arpNote->outputMemberChannel[n];
+					arpNote->noteCodeOnPostArp[n] = ARP_NOTE_NONE;
 					arpNote->outputMemberChannel[n] = MIDI_CHANNEL_NONE;
 					arpNote->noteStatus[n] = ArpNoteStatus::OFF;
 				}
@@ -488,16 +505,29 @@ bool Arpeggiator::handlePendingNotes(ArpeggiatorSettings* settings, ArpReturnIns
 		// if off make sure there aren't any notes waiting to start
 		if (anyPending) {
 			for (int i = 0; i < notes.getNumElements(); i++) {
-				if (auto* arp_note = static_cast<ArpNote*>(notes.getElementAddress(i));
-				    arp_note->noteStatus[0] == ArpNoteStatus::PENDING) {
-					if (arp_note->isStartablePending()) {
-						instruction->arpNoteOn = arp_note;
-						arp_note->noteStatus[0] = ArpNoteStatus::PLAYING;
-						ARP_PRINTLN("found a pending a live note, starting it");
-						return true;
+				auto* arp_note = static_cast<ArpNote*>(notes.getElementAddress(i));
+				// Check every post-arp slot, not just slot 0 - with the arp off, CHORD MODE can leave its extra
+				// stacked notes (slots 1-3) pending on their own even after the root (slot 0) has already started,
+				// if the voice pool was full when it was their turn. Each still gets its own independent retry.
+				bool foundLive = false;
+				for (int32_t n = 0; n < ARP_MAX_INSTRUCTION_NOTES; n++) {
+					if (arp_note->noteStatus[n] != ArpNoteStatus::PENDING) {
+						continue;
 					}
-					// Pending, but with nothing to actually play
-					arp_note->noteStatus[0] = ArpNoteStatus::OFF;
+					if (arp_note->noteCodeOnPostArp[n] != ARP_NOTE_NONE) {
+						foundLive = true;
+					}
+					else {
+						// Pending, but with nothing to actually play
+						arp_note->noteStatus[n] = ArpNoteStatus::OFF;
+					}
+				}
+				if (foundLive) {
+					// Hand the whole note to process_postarp_notes(), which retries every still-PENDING slot and
+					// is the sole place that marks a slot PLAYING - only once a voice was actually acquired for it.
+					instruction->arpNoteOn = arp_note;
+					ARP_PRINTLN("found a pending a live note, starting it");
+					return true;
 				}
 			}
 			anyPending = false;

@@ -60,6 +60,7 @@
 #include "util/exceptions.h"
 #include "util/firmware_version.h"
 #include "util/functions.h"
+#include "util/lookuptables/lookuptables.h"
 #include "util/misc.h"
 #include <algorithm>
 #include <array>
@@ -1249,6 +1250,36 @@ Error Sound::readTagFromFileOrError(Deserializer& reader, char const* tagName, P
 		reader.exitTag("polyphonic");
 	}
 
+	else if (!strcmp(tagName, "chordModeOn")) {
+		chordModeOn = (reader.readTagOrAttributeValueInt() != 0);
+		reader.exitTag("chordModeOn");
+	}
+
+	else if (!strcmp(tagName, "chordModeOffset1")) {
+		chordModeOffsets[0] = static_cast<int8_t>(reader.readTagOrAttributeValueInt());
+		reader.exitTag("chordModeOffset1");
+	}
+
+	else if (!strcmp(tagName, "chordModeOffset2")) {
+		chordModeOffsets[1] = static_cast<int8_t>(reader.readTagOrAttributeValueInt());
+		reader.exitTag("chordModeOffset2");
+	}
+
+	else if (!strcmp(tagName, "chordModeOffset3")) {
+		chordModeOffsets[2] = static_cast<int8_t>(reader.readTagOrAttributeValueInt());
+		reader.exitTag("chordModeOffset3");
+	}
+
+	else if (!strcmp(tagName, "chordModeType")) {
+		chordModeType = static_cast<uint8_t>(reader.readTagOrAttributeValueInt());
+		reader.exitTag("chordModeType");
+	}
+
+	else if (!strcmp(tagName, "chordModeStrumRateMs")) {
+		chordModeStrumRateMs = reader.readTagOrAttributeValueInt();
+		reader.exitTag("chordModeStrumRateMs");
+	}
+
 	else if (!strcmp(tagName, "maxVoices")) {
 		maxVoiceCount = reader.readTagOrAttributeValueInt();
 		reader.exitTag("maxVoices");
@@ -1503,7 +1534,7 @@ PatchCableAcceptance Sound::maySourcePatchToParam(PatchSource s, uint8_t p, Para
 
 void Sound::noteOn(ModelStackWithThreeMainThings* modelStack, ArpeggiatorBase* arpeggiator, int32_t noteCodePreArp,
                    int16_t const* mpeValues, uint32_t sampleSyncLength, int32_t ticksLate, uint32_t samplesLate,
-                   int32_t velocity, int32_t fromMIDIChannel) {
+                   int32_t velocity, int32_t fromMIDIChannel, bool suppressChordMode) {
 
 	ParamManagerForTimeline* paramManager = (ParamManagerForTimeline*)modelStack->paramManager;
 
@@ -1525,40 +1556,98 @@ void Sound::noteOn(ModelStackWithThreeMainThings* modelStack, ArpeggiatorBase* a
 
 	getArpBackInTimeAfterSkippingRendering(arpSettings); // Have to do this before telling the arp to noteOn()
 
-	ArpReturnInstruction instruction;
-	instruction.sampleSyncLengthOn = sampleSyncLength;
+	bool arpIsOn = (arpSettings != nullptr) && (arpSettings->mode != ArpMode::OFF);
 
-	// We used to not have to worry about the arpeggiator if one-shot samples etc. But now that we support MPE, we do
-	// need to keep track of all sounding notes, even one-shot ones, and the "arpeggiator" is where this is stored.
-	// These will get left here even after the note has long gone (for sequenced notes anyway), but I can't actually
-	// find any negative consequence of this, or need to ever remove them en masse.
-	arpeggiator->noteOn(arpSettings, noteCodePreArp, velocity, &instruction, fromMIDIChannel, mpeValues);
+	// CHORD MODE: resolve which extra semitone offsets (if any) should stack on top of this note right now.
+	// Suppressed entirely while the keyboard's own Chord layout or Chord sidebar column is in use (see
+	// KeyboardScreen::updateActiveNotes / MelodicInstrument::beginAuditioningForNote) - those already build chords
+	// themselves, so layering CHORD MODE's own stacking on top would be redundant and would previously compound
+	// multiplicatively on every note the layout/column generates.
+	int8_t chordExtraOffsets[3] = {0, 0, 0};
+	int32_t numChordExtraOffsets =
+	    (chordModeOn && !suppressChordMode) ? getChordModeExtraOffsets(chordExtraOffsets) : 0;
+
+	// With the arp OFF, CHORD MODE's extra notes are always scheduled through the STRUM mechanism now (see
+	// scheduleChordModeStrumNotes / Sound::render / Sound::noteOff), even when chordModeStrumRateMs is 0 (STRUM
+	// dialled to its minimum) - getChordModeStrumStepSamples() clamps a 0ms rate up to 1ms internally, an
+	// inaudible stagger between the root and each extra note. This used to be conditional on chordModeStrumRateMs
+	// > 0, with a 0 rate instead stacking every extra note directly into spare slots of the SAME ArpNote entry
+	// the root just landed in ("instant block chord", no stagger at all). That block-chord path shared live
+	// ArpNote/voice bookkeeping across all of a chord's notes in a way that fast/saturated multi-pad playing could
+	// desync, leaving a voice stuck sounding forever with no note-off ever able to find it again - confirmed
+	// empirically (turning STRUM on, even at its lowest setting, made the stuck notes disappear completely) and
+	// fixed by always going through STRUM's scheduling instead, which tracks each note independently of the
+	// arpeggiator entirely. With the arp ON, STRUM has no effect either way - CHORD MODE's stacked notes go back
+	// to being injected into the arpeggiator exactly as they were before STRUM existed.
+	bool chordModeExtrasViaStrum = (numChordExtraOffsets > 0) && !arpIsOn;
+
+	// Pitches to actually hand to the arpeggiator this call: just the root, unless CHORD MODE is stacking notes AND
+	// the arp is on, in which case every stacked tone is injected as if it had been physically played too.
+	int32_t pitchesToSend[4] = {noteCodePreArp, 0, 0, 0};
+	int32_t numPitchesToSend = 1;
+	if ((numChordExtraOffsets > 0) && arpIsOn) {
+		for (int32_t i = 0; i < numChordExtraOffsets; i++) {
+			pitchesToSend[numPitchesToSend++] = noteCodePreArp + chordExtraOffsets[i];
+		}
+		// Remember exactly these offsets against this root note, so noteOff releases the same pitches later even
+		// if CHORD MODE's settings change while the note is still held (see recallAndForgetChordModeStack).
+		rememberChordModeStack(noteCodePreArp, chordExtraOffsets, numChordExtraOffsets);
+	}
+
+	if (chordModeExtrasViaStrum) {
+		scheduleChordModeStrumNotes(noteCodePreArp, chordExtraOffsets, numChordExtraOffsets, velocity, mpeValues,
+		                            fromMIDIChannel);
+	}
 
 	bool atLeastOneNoteOn = false;
 	bool atLeastOneNoteLeftPending = false;
-	if (instruction.arpNoteOn != nullptr) {
+
+	for (int32_t p = 0; p < numPitchesToSend; p++) {
+		ArpReturnInstruction instruction;
+		instruction.sampleSyncLengthOn = sampleSyncLength;
+
+		// We used to not have to worry about the arpeggiator if one-shot samples etc. But now that we support MPE, we
+		// do need to keep track of all sounding notes, even one-shot ones, and the "arpeggiator" is where this is
+		// stored. These will get left here even after the note has long gone (for sequenced notes anyway), but I can't
+		// actually find any negative consequence of this, or need to ever remove them en masse.
+		arpeggiator->noteOn(arpSettings, pitchesToSend[p], velocity, &instruction, fromMIDIChannel, mpeValues);
+
+		// If the arpeggiator found this exact note already tracked without ever having been released (see
+		// Arpeggiator::noteOn), it hands back whatever that stale entry was still sounding here so we can release
+		// it now, before any of it gets reused for the fresh note-on below - otherwise a voice that had already
+		// started for the old note-on would never get a matching note-off and would sound forever.
 		for (int32_t n = 0; n < ARP_MAX_INSTRUCTION_NOTES; n++) {
-			if (instruction.arpNoteOn->noteCodeOnPostArp[n] == ARP_NOTE_NONE) {
+			if (instruction.noteCodeOffPostArp[n] == ARP_NOTE_NONE) {
 				break;
 			}
-			atLeastOneNoteOn = true;
+			noteOffPostArpeggiator(modelStackWithSoundFlags, instruction.noteCodeOffPostArp[n]);
+		}
 
-			if (AudioEngine::allowedToStartVoice()) {
+		if (instruction.arpNoteOn != nullptr) {
+			for (int32_t n = 0; n < ARP_MAX_INSTRUCTION_NOTES; n++) {
+				if (instruction.arpNoteOn->noteCodeOnPostArp[n] == ARP_NOTE_NONE) {
+					break;
+				}
+				atLeastOneNoteOn = true;
 
-				invertReversed = instruction.invertReversed;
-				noteOnPostArpeggiator(modelStackWithSoundFlags, noteCodePreArp,
-				                      instruction.arpNoteOn->noteCodeOnPostArp[n], instruction.arpNoteOn->velocity,
-				                      mpeValues, instruction.sampleSyncLengthOn, ticksLate, samplesLate,
-				                      fromMIDIChannel);
-				instruction.arpNoteOn->noteStatus[n] = ArpNoteStatus::PLAYING;
-			}
-			else {
-				// D_PRINTLN("couldn't start note from sound::noteon");
-				// It stays PENDING, and render() will start it as soon as a voice is available
-				atLeastOneNoteLeftPending = true;
+				if (AudioEngine::allowedToStartVoice()) {
+
+					invertReversed = instruction.invertReversed;
+					noteOnPostArpeggiator(modelStackWithSoundFlags, pitchesToSend[p],
+					                      instruction.arpNoteOn->noteCodeOnPostArp[n], instruction.arpNoteOn->velocity,
+					                      mpeValues, instruction.sampleSyncLengthOn, ticksLate, samplesLate,
+					                      fromMIDIChannel);
+					instruction.arpNoteOn->noteStatus[n] = ArpNoteStatus::PLAYING;
+				}
+				else {
+					// D_PRINTLN("couldn't start note from sound::noteon");
+					// It stays PENDING, and render() will start it as soon as a voice is available
+					atLeastOneNoteLeftPending = true;
+				}
 			}
 		}
 	}
+
 	if (!atLeastOneNoteOn) {
 		// in the case of the arpeggiator not returning a note On (could happen if Note Probability evaluates to "don't
 		// play") we must at least evaluate the render-skipping if the arpeggiator is ON
@@ -1577,23 +1666,194 @@ void Sound::noteOff(ModelStackWithThreeMainThings* modelStack, ArpeggiatorBase* 
 	ModelStackWithSoundFlags* modelStackWithSoundFlags = modelStack->addSoundFlags();
 	ArpeggiatorSettings* arpSettings = getArpSettings();
 
-	ArpReturnInstruction instruction;
-	arpeggiator->noteOff(arpSettings, noteCode, &instruction);
+	bool arpIsOn = (arpSettings != nullptr) && (arpSettings->mode != ArpMode::OFF);
 
-	for (int32_t n = 0; n < ARP_MAX_INSTRUCTION_NOTES; n++) {
-		if (instruction.glideNoteCodeOffPostArp[n] == ARP_NOTE_NONE) {
-			break;
-		}
-		noteOffPostArpeggiator(modelStackWithSoundFlags, instruction.glideNoteCodeOffPostArp[n]);
+	// STRUM's stacked notes never get registered with the arpeggiator (see Sound::noteOn) - release whatever of
+	// them is tied to this root directly. Unconditional (not gated on chordModeOn/chordModeStrumRateMs' *current*
+	// value) so a note that started while STRUM was on still gets finished correctly even if settings changed
+	// while it was held - same reasoning as recallAndForgetChordModeStack just below.
+	finishChordModeStrumNotesForRoot(modelStackWithSoundFlags, noteCode);
+
+	// Release exactly the pitches CHORD MODE actually registered with the arpeggiator at note-on time - NOT a
+	// fresh computation from current settings, which could have changed (a different AUTO chord type, manual
+	// offsets edited, or CHORD MODE toggled off) while this note was still held. Recomputing here would release
+	// the wrong pitches and leave one of the originally-stacked notes stuck forever in the arpeggiator.
+	int8_t chordExtraOffsets[3] = {0, 0, 0};
+	int32_t numChordExtraOffsets = recallAndForgetChordModeStack(noteCode, chordExtraOffsets);
+	if (numChordExtraOffsets < 0) {
+		// Nothing was remembered for this note (CHORD MODE/arp were off when it started, or the table was full) -
+		// best effort with whatever's configured right now.
+		numChordExtraOffsets = (chordModeOn && arpIsOn) ? getChordModeExtraOffsets(chordExtraOffsets) : 0;
 	}
-	for (int32_t n = 0; n < ARP_MAX_INSTRUCTION_NOTES; n++) {
-		if (instruction.noteCodeOffPostArp[n] == ARP_NOTE_NONE) {
-			break;
+
+	int32_t pitchesToRelease[4] = {noteCode, 0, 0, 0};
+	int32_t numPitchesToRelease = 1;
+	if (numChordExtraOffsets > 0) {
+		for (int32_t i = 0; i < numChordExtraOffsets; i++) {
+			pitchesToRelease[numPitchesToRelease++] = noteCode + chordExtraOffsets[i];
 		}
-		noteOffPostArpeggiator(modelStackWithSoundFlags, instruction.noteCodeOffPostArp[n]);
+	}
+
+	for (int32_t p = 0; p < numPitchesToRelease; p++) {
+		ArpReturnInstruction instruction;
+		arpeggiator->noteOff(arpSettings, pitchesToRelease[p], &instruction);
+
+		for (int32_t n = 0; n < ARP_MAX_INSTRUCTION_NOTES; n++) {
+			if (instruction.glideNoteCodeOffPostArp[n] == ARP_NOTE_NONE) {
+				break;
+			}
+			noteOffPostArpeggiator(modelStackWithSoundFlags, instruction.glideNoteCodeOffPostArp[n]);
+		}
+		for (int32_t n = 0; n < ARP_MAX_INSTRUCTION_NOTES; n++) {
+			if (instruction.noteCodeOffPostArp[n] == ARP_NOTE_NONE) {
+				break;
+			}
+			noteOffPostArpeggiator(modelStackWithSoundFlags, instruction.noteCodeOffPostArp[n]);
+		}
 	}
 
 	reassessRenderSkippingStatus(modelStackWithSoundFlags);
+}
+
+int32_t Sound::getChordModeExtraOffsets(int8_t* outOffsets) const {
+	int32_t count = 0;
+	// AUTO (a chord type other than NONE) always wins over MANUAL when set; MANUAL only prevails while AUTO is
+	// left on NONE.
+	if (chordModeType != 0 && chordModeType < MAX_CHORD_TYPES) {
+		// Slot 0 of this table is always the root (0) - skip it, we only want the extra stacked notes.
+		for (int32_t i = 1; i < MAX_CHORD_NOTES && count < 3; i++) {
+			uint8_t offset = chordTypeSemitoneOffsets[chordModeType][i];
+			if (offset != 0) {
+				outOffsets[count++] = static_cast<int8_t>(offset);
+			}
+		}
+	}
+	else {
+		for (int32_t i = 0; i < 3; i++) {
+			int8_t offset = chordModeOffsets[i];
+			if (offset == 0) {
+				continue;
+			}
+			// Two slots set to the same semitone offset would just double up the exact same pitch - keep only the
+			// first occurrence and treat the rest as if they were left OFF.
+			bool alreadyHave = false;
+			for (int32_t j = 0; j < count; j++) {
+				if (outOffsets[j] == offset) {
+					alreadyHave = true;
+					break;
+				}
+			}
+			if (!alreadyHave) {
+				outOffsets[count++] = offset;
+			}
+		}
+	}
+	return count;
+}
+
+void Sound::rememberChordModeStack(int32_t rootNoteCode, const int8_t* offsets, int32_t count) {
+	for (auto& slot : chordModeActiveStacks_) {
+		if (!slot.inUse) {
+			slot.inUse = true;
+			slot.rootNoteCode = rootNoteCode;
+			slot.count = count;
+			for (int32_t i = 0; i < count; i++) {
+				slot.offsets[i] = offsets[i];
+			}
+			return;
+		}
+	}
+	// Table full (many simultaneous CHORD MODE roots at once) - noteOff will fall back to recomputing fresh
+	// offsets for this one note, which is only wrong if settings changed in the meantime.
+}
+
+int32_t Sound::recallAndForgetChordModeStack(int32_t rootNoteCode, int8_t* outOffsets) {
+	for (auto& slot : chordModeActiveStacks_) {
+		if (slot.inUse && slot.rootNoteCode == rootNoteCode) {
+			int32_t count = slot.count;
+			for (int32_t i = 0; i < count; i++) {
+				outOffsets[i] = slot.offsets[i];
+			}
+			slot.inUse = false;
+			return count;
+		}
+	}
+	return -1;
+}
+
+int32_t Sound::getChordModeStrumStepSamples() const {
+	// chordModeStrumRateMs converted straight to samples (same idiom as e.g. defaults::HoldTime /
+	// kLowFeedbackAutomationRate elsewhere in the codebase).
+	int32_t ms = std::max<int32_t>(chordModeStrumRateMs, 1);
+	return std::max<int32_t>((ms * kSampleRate) / 1000, 1);
+}
+
+void Sound::scheduleChordModeStrumNotes(int32_t rootNoteCode, const int8_t* offsets, int32_t count, int32_t velocity,
+                                        int16_t const* mpeValues, int32_t fromMIDIChannel) {
+	int32_t stepSamples = getChordModeStrumStepSamples();
+	for (int32_t i = 0; i < count; i++) {
+		for (auto& slot : chordModeStrumPendingNotes_) {
+			if (slot.inUse) {
+				continue;
+			}
+			slot.inUse = true;
+			slot.fired = false;
+			slot.rootNoteCode = rootNoteCode;
+			slot.noteCodeToPlay = rootNoteCode + offsets[i];
+			slot.velocity = velocity;
+			slot.fromMIDIChannel = fromMIDIChannel;
+			for (int32_t d = 0; d < kNumExpressionDimensions; d++) {
+				slot.mpeValues[d] = mpeValues[d];
+			}
+			// Short-to-long spread: the first stacked note strikes one step after the root, the second two steps
+			// after, and so on - like a slowly strummed guitar chord.
+			slot.samplesUntilFire = stepSamples * (i + 1);
+			break;
+		}
+		// Table full (many simultaneous STRUM'd chords at once) - this one extra note is silently dropped rather
+		// than stacked against the wrong root.
+	}
+}
+
+void Sound::tickChordModeStrumPendingNotes(ModelStackWithSoundFlags* modelStack, int32_t numSamples) {
+	for (auto& slot : chordModeStrumPendingNotes_) {
+		if (!slot.inUse || slot.fired) {
+			continue;
+		}
+		slot.samplesUntilFire -= numSamples;
+		if (slot.samplesUntilFire <= 0) {
+			slot.fired = true;
+			// How many samples into this render block the note was actually due - same sub-buffer sample-accurate
+			// mechanism Sound::noteOn already uses for freshly-played notes.
+			int32_t samplesLate = -slot.samplesUntilFire;
+			if (samplesLate < 0) {
+				samplesLate = 0;
+			}
+			else if (numSamples > 0 && samplesLate >= numSamples) {
+				samplesLate = numSamples - 1;
+			}
+			noteOnPostArpeggiator(modelStack, slot.noteCodeToPlay, slot.noteCodeToPlay, slot.velocity, slot.mpeValues,
+			                      0, 0, static_cast<uint32_t>(samplesLate), slot.fromMIDIChannel);
+		}
+	}
+}
+
+void Sound::finishChordModeStrumNotesForRoot(ModelStackWithSoundFlags* modelStack, int32_t rootNoteCode) {
+	for (auto& slot : chordModeStrumPendingNotes_) {
+		if (!slot.inUse || slot.rootNoteCode != rootNoteCode) {
+			continue;
+		}
+		if (!slot.fired) {
+			// Not struck yet when the chord got released - "finish" it immediately instead of either skipping it
+			// or leaving it scheduled for a time that will never make sense once the root's gone: it still sounds
+			// briefly, then gets released right below along with everything else.
+			noteOnPostArpeggiator(modelStack, slot.noteCodeToPlay, slot.noteCodeToPlay, slot.velocity, slot.mpeValues,
+			                      0, 0, 0, slot.fromMIDIChannel);
+		}
+		noteOffPostArpeggiator(modelStack, slot.noteCodeToPlay);
+		slot.inUse = false;
+		slot.fired = false;
+	}
 }
 
 void Sound::noteOnPostArpeggiator(ModelStackWithSoundFlags* modelStack, int32_t noteCodePreArp, int32_t noteCodePostArp,
@@ -2350,12 +2610,25 @@ void Sound::stopParamLPF(ModelStackWithSoundFlags* modelStack) {
 void Sound::process_postarp_notes(ModelStackWithSoundFlags* modelStackWithSoundFlags, ArpeggiatorSettings* arpSettings,
                                   ArpReturnInstruction instruction) {
 	if (instruction.arpNoteOn) {
-		instruction.arpNoteOn->noteStatus[0] = ArpNoteStatus::PENDING;
-
 		for (int32_t n = 0; n < ARP_MAX_INSTRUCTION_NOTES; n++) {
 			if (instruction.arpNoteOn->noteCodeOnPostArp[n] == ARP_NOTE_NONE) {
 				break;
 			}
+			// Only (re)try slots that are actually still waiting to start - a slot that's already PLAYING got
+			// there via a successful start already (from Sound::noteOn or an earlier call here), and re-triggering
+			// it would start a redundant second voice for the same note, which is what left notes stuck sounding
+			// forever under CHORD MODE + fast/saturated play.
+			if (instruction.arpNoteOn->noteStatus[n] != ArpNoteStatus::PENDING) {
+				continue;
+			}
+
+			if (!AudioEngine::allowedToStartVoice()) {
+				// Still no free voice - leave this (and any later) slot PENDING so handlePendingNotes() finds this
+				// note again next render() and we retry then, exactly like Sound::noteOn's own gated loop does for
+				// a freshly-played note.
+				break;
+			}
+
 			invertReversed = instruction.invertReversed;
 
 			noteOnPostArpeggiator(
@@ -2441,6 +2714,13 @@ void Sound::render(ModelStackWithThreeMainThings* modelStack, std::span<StereoSa
 	    << 5;
 
 	ModelStackWithSoundFlags* modelStackWithSoundFlags = modelStack->addSoundFlags();
+
+	// STRUM: fire any CHORD-MODE-stacked notes whose scheduled moment has arrived within this render block.
+	// Entirely independent of the arpeggiator section below - STRUM'd notes never go through the arp at all (see
+	// Sound::noteOn / Sound::noteOff / getChordModeStrumStepSamples). Unconditional for the same reason noteOff's
+	// call is: notes already scheduled must still be ticked down and fired even if chordModeStrumRateMs is set
+	// back to 0 (STRUM turned off) mid-note.
+	tickChordModeStrumPendingNotes(modelStackWithSoundFlags, static_cast<int32_t>(output.size()));
 
 	// Arpeggiator
 
@@ -4142,6 +4422,25 @@ void Sound::writeToFile(Serializer& writer, bool savingSong, ParamManager* param
 
 	writer.writeAttribute("polyphonic", polyphonyModeToString(polyphonic));
 	writer.writeAttribute("voicePriority", util::to_underlying(voicePriority));
+
+	if (chordModeOn) {
+		writer.writeAttribute("chordModeOn", (int32_t)chordModeOn);
+	}
+	if (chordModeOffsets[0] != 0) {
+		writer.writeAttribute("chordModeOffset1", (int32_t)chordModeOffsets[0]);
+	}
+	if (chordModeOffsets[1] != 0) {
+		writer.writeAttribute("chordModeOffset2", (int32_t)chordModeOffsets[1]);
+	}
+	if (chordModeOffsets[2] != 0) {
+		writer.writeAttribute("chordModeOffset3", (int32_t)chordModeOffsets[2]);
+	}
+	if (chordModeType != 0) {
+		writer.writeAttribute("chordModeType", (int32_t)chordModeType);
+	}
+	if (chordModeStrumRateMs != 0) {
+		writer.writeAttribute("chordModeStrumRateMs", chordModeStrumRateMs);
+	}
 
 	// Send level
 	if (sideChainSendLevel != 0) {

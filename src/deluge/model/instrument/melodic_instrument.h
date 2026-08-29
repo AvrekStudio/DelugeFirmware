@@ -33,9 +33,12 @@ public:
 
 	// Check activeClip before you call!
 	// mpeValues must be provided for a note-on (can be 0s). Otherwise, can be NULL pointer
+	// suppressChordMode: true while a keyboard mechanism that already builds its own chords (the Chord layout, or
+	// the Chord sidebar column) is generating this note, so Sound's own CHORD MODE stacking doesn't also apply.
 	virtual void sendNote(ModelStackWithThreeMainThings* modelStack, bool isOn, int32_t noteCode,
 	                      int16_t const* mpeValues, int32_t fromMIDIChannel = MIDI_CHANNEL_NONE, uint8_t velocity = 64,
-	                      uint32_t sampleSyncLength = 0, int32_t ticksLate = 0, uint32_t samplesLate = 0) = 0;
+	                      uint32_t sampleSyncLength = 0, int32_t ticksLate = 0, uint32_t samplesLate = 0,
+	                      bool suppressChordMode = false) = 0;
 
 	virtual void ccReceivedFromInputMIDIChannel(int32_t cc, int32_t value, ModelStackWithTimelineCounter* modelStack) {}
 
@@ -65,8 +68,10 @@ public:
 	void stopAnyAuditioning(ModelStack* modelStack) final;
 	bool isNoteAuditioning(int32_t noteCode);
 	bool isAnyAuditioningHappening() final;
+	// suppressChordMode: see MelodicInstrument::sendNote.
 	void beginAuditioningForNote(ModelStack* modelStack, int32_t note, int32_t velocity, int16_t const* mpeValues,
-	                             int32_t fromMIDIChannel = MIDI_CHANNEL_NONE, uint32_t sampleSyncLength = 0);
+	                             int32_t fromMIDIChannel = MIDI_CHANNEL_NONE, uint32_t sampleSyncLength = 0,
+	                             bool suppressChordMode = false);
 	void endAuditioningForNote(ModelStack* modelStack, int32_t note, int32_t velocity = kDefaultLiftValue);
 	virtual ModelStackWithAutoParam* getParamToControlFromInputMIDIChannel(int32_t cc,
 	                                                                       ModelStackWithThreeMainThings* modelStack);

@@ -115,6 +115,78 @@ public:
 	PolyphonyMode polyphonic = PolyphonyMode::POLY;
 	uint8_t maxVoiceCount = 8;
 
+	// CHORD MODE: on every note-on, stacks extra notes on top of the root, in root position, without writing
+	// them onto the sequencer grid. With the arp off they sound as a chord fired via STRUM (see
+	// chordModeStrumRateMs below); with the arp on, each extra note is registered with the arpeggiator as its own
+	// held note so the arp genuinely steps through them.
+	bool chordModeOn = false;
+	int8_t chordModeOffsets[3] = {0, 0, 0}; // signed semitones above the root; 0 in a slot means "no note there"
+	// Index into chordTypeSemitoneOffsets / chordNames (see util/lookuptables). 0 (NONE) means "no AUTO chord
+	// chosen" - in that case the MANUAL offsets above prevail; any other value overrides them entirely.
+	uint8_t chordModeType = 0;
+
+	/// Fills outOffsets[0..N) with the (up to 3) nonzero semitone offsets CHORD MODE should stack on top of the
+	/// root note right now (resolved from either the manual offsets or the chosen chord type). Returns N.
+	int32_t getChordModeExtraOffsets(int8_t* outOffsets) const;
+
+	// STRUM: with the arp off, CHORD MODE's stacked notes are always fired one at a time, chordModeStrumRateMs
+	// milliseconds apart, and "finished" all at once if the root note is released before they've all sounded (see
+	// scheduleChordModeStrumNotes / Sound::noteOn/noteOff/render). 0 (STRUM's minimum/"off" setting) still uses
+	// this same mechanism - getChordModeStrumStepSamples() clamps it up to an inaudible ~1ms stagger rather than
+	// truly bundling the notes into one instant block chord. An earlier version did exactly that (stacking every
+	// extra note directly into a single ArpNote entry's spare slots when this was 0), but that path could desync
+	// its shared bookkeeping under fast/saturated multi-pad playing and leave a voice stuck sounding forever -
+	// going through STRUM's independent per-note scheduling unconditionally fixed it. With the arp on, STRUM has
+	// no effect either way - CHORD MODE's stacked notes go back to being injected into the arpeggiator exactly as
+	// they were before STRUM existed.
+	int32_t chordModeStrumRateMs = 0;
+
+	/// Milliseconds -> samples spacing between each STRUM'd note.
+	int32_t getChordModeStrumStepSamples() const;
+
+private:
+	// With the arp ON, CHORD MODE registers the stacked notes as their own independently-held notes in the
+	// arpeggiator (see Sound::noteOn) - so Sound::noteOff must release exactly those same pitches later, even if
+	// CHORD MODE's settings (the AUTO chord type, the manual offsets, or the on/off switch itself) changed while
+	// the note was still sounding. Recomputing fresh offsets at noteOff time would release the wrong pitches and
+	// leave one of the originally-stacked notes stuck forever in the arpeggiator's held-notes list - this table
+	// remembers what was actually used, per currently-held root note, so noteOff can look it back up instead.
+	struct ChordModeActiveStack {
+		bool inUse = false;
+		int32_t rootNoteCode = 0;
+		int8_t offsets[3] = {0, 0, 0};
+		int32_t count = 0;
+	};
+	static constexpr int32_t kMaxChordModeActiveStacks = 8;
+	ChordModeActiveStack chordModeActiveStacks_[kMaxChordModeActiveStacks]{};
+
+	void rememberChordModeStack(int32_t rootNoteCode, const int8_t* offsets, int32_t count);
+	/// Returns the remembered count and fills outOffsets, or -1 if nothing was remembered for this root note
+	/// (CHORD MODE/arp were off when it started, or the table was full at the time).
+	int32_t recallAndForgetChordModeStack(int32_t rootNoteCode, int8_t* outOffsets);
+
+	// One entry per CHORD-MODE-stacked note that STRUM is responsible for: either still waiting to be struck
+	// (fired == false), or already sounding and just waiting for its root note's noteOff (fired == true). Kept
+	// around after firing (rather than forgotten) purely so Sound::noteOff can find and release it later.
+	struct ChordModeStrumPendingNote {
+		bool inUse = false;
+		bool fired = false;
+		int32_t rootNoteCode = 0;
+		int32_t noteCodeToPlay = 0;
+		int32_t velocity = 0;
+		int32_t fromMIDIChannel = MIDI_CHANNEL_NONE;
+		int16_t mpeValues[kNumExpressionDimensions] = {0, 0, 0};
+		int32_t samplesUntilFire = 0;
+	};
+	static constexpr int32_t kMaxChordModeStrumPendingNotes = 16;
+	ChordModeStrumPendingNote chordModeStrumPendingNotes_[kMaxChordModeStrumPendingNotes]{};
+
+	void scheduleChordModeStrumNotes(int32_t rootNoteCode, const int8_t* offsets, int32_t count, int32_t velocity,
+	                                 int16_t const* mpeValues, int32_t fromMIDIChannel);
+	void tickChordModeStrumPendingNotes(ModelStackWithSoundFlags* modelStack, int32_t numSamples);
+	void finishChordModeStrumNotesForRoot(ModelStackWithSoundFlags* modelStack, int32_t rootNoteCode);
+
+public:
 	int16_t transpose = 0;
 
 	uint8_t numUnison = 1;
@@ -210,7 +282,8 @@ public:
 	bool isNoiseActiveEver(ParamManagerForTimeline* paramManager);
 	void noteOn(ModelStackWithThreeMainThings* modelStack, ArpeggiatorBase* arpeggiator, int32_t noteCode,
 	            int16_t const* mpeValues, uint32_t sampleSyncLength = 0, int32_t ticksLate = 0,
-	            uint32_t samplesLate = 0, int32_t velocity = 64, int32_t fromMIDIChannel = 16);
+	            uint32_t samplesLate = 0, int32_t velocity = 64, int32_t fromMIDIChannel = 16,
+	            bool suppressChordMode = false);
 	void noteOff(ModelStackWithThreeMainThings* modelStack, ArpeggiatorBase* arpeggiator, int32_t noteCode);
 	void allNotesOff(ModelStackWithThreeMainThings* modelStack, ArpeggiatorBase* arpeggiator);
 

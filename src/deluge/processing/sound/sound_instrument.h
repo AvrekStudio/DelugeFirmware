@@ -64,7 +64,7 @@ public:
 
 	void sendNote(ModelStackWithThreeMainThings* modelStack, bool isOn, int32_t noteCode, int16_t const* mpeValues,
 	              int32_t fromMIDIChannel, uint8_t velocity, uint32_t sampleSyncLength, int32_t ticksLate,
-	              uint32_t samplesLate) override;
+	              uint32_t samplesLate, bool suppressChordMode = false) override;
 
 	ArpeggiatorSettings* getArpSettings(InstrumentClip* clip = nullptr) override;
 	bool readTagFromFile(Deserializer& reader, char const* tagName) override;

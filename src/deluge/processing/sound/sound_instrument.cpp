@@ -371,7 +371,8 @@ lookAtArpNote:
 
 void SoundInstrument::sendNote(ModelStackWithThreeMainThings* modelStack, bool isOn, int32_t noteCode,
                                int16_t const* mpeValues, int32_t fromMIDIChannel, uint8_t velocity,
-                               uint32_t sampleSyncLength, int32_t ticksLate, uint32_t samplesLate) {
+                               uint32_t sampleSyncLength, int32_t ticksLate, uint32_t samplesLate,
+                               bool suppressChordMode) {
 
 	if (!inValidState) {
 		return;
@@ -379,7 +380,7 @@ void SoundInstrument::sendNote(ModelStackWithThreeMainThings* modelStack, bool i
 
 	if (isOn) {
 		noteOn(modelStack, &arpeggiator, noteCode, mpeValues, sampleSyncLength, ticksLate, samplesLate, velocity,
-		       fromMIDIChannel);
+		       fromMIDIChannel, suppressChordMode);
 	}
 	else {
 		noteOff(modelStack, &arpeggiator, noteCode);

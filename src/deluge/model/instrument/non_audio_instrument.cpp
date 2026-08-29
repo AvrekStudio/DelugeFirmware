@@ -76,7 +76,9 @@ void NonAudioInstrument::renderOutput(ModelStack* modelStack, std::span<StereoSa
 
 void NonAudioInstrument::sendNote(ModelStackWithThreeMainThings* modelStack, bool isOn, int32_t noteCodePreArp,
                                   int16_t const* mpeValues, int32_t fromMIDIChannel, uint8_t velocity,
-                                  uint32_t sampleSyncLength, int32_t ticksLate, uint32_t samplesLate) {
+                                  uint32_t sampleSyncLength, int32_t ticksLate, uint32_t samplesLate,
+                                  bool /*suppressChordMode*/) {
+	// CHORD MODE doesn't exist for MIDI/CV instruments, so the flag has nothing to suppress here.
 
 	ArpeggiatorSettings* arpSettings = nullptr;
 	if (activeClip) {

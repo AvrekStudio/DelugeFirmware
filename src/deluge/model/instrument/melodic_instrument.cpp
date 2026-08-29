@@ -527,7 +527,7 @@ bool MelodicInstrument::isNoteAuditioning(int32_t noteCode) {
 
 void MelodicInstrument::beginAuditioningForNote(ModelStack* modelStack, int32_t note, int32_t velocity,
                                                 int16_t const* mpeValues, int32_t fromMIDIChannel,
-                                                uint32_t sampleSyncLength) {
+                                                uint32_t sampleSyncLength, bool suppressChordMode) {
 	if (!activeClip) {
 		return;
 	}
@@ -556,7 +556,8 @@ void MelodicInstrument::beginAuditioningForNote(ModelStack* modelStack, int32_t 
 	ModelStackWithThreeMainThings* modelStackWithThreeMainThings =
 	    modelStackWithNoteRow->addOtherTwoThings(toModControllable(), paramManager);
 
-	sendNote(modelStackWithThreeMainThings, true, note, mpeValues, fromMIDIChannel, velocity, sampleSyncLength);
+	sendNote(modelStackWithThreeMainThings, true, note, mpeValues, fromMIDIChannel, velocity, sampleSyncLength, 0, 0,
+	         suppressChordMode);
 }
 
 void MelodicInstrument::endAuditioningForNote(ModelStack* modelStack, int32_t note, int32_t velocity) {
