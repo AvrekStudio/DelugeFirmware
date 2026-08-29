@@ -210,6 +210,17 @@ void KeyboardScreen::updateActiveNotes() {
 	ModelStack* modelStack = setupModelStackWithSong(modelStackMemory, currentSong);
 	bool clipIsActiveOnInstrument = makeCurrentClipActiveOnInstrumentIfPossible(modelStack);
 
+	// CHORD MODE gets suppressed for every note played while the keyboard itself is already building chords -
+	// the full-screen Chord layout, the Chord Library layout, or the Chord function assigned to either sidebar
+	// column on any other layout - since layering Sound's own CHORD MODE stacking on top of those would be
+	// redundant (see Sound::noteOn).
+	auto& keyboardState = getCurrentInstrumentClip()->keyboardState;
+	bool chordLayoutActive = (keyboardState.currentLayout == KeyboardLayoutType::KeyboardLayoutTypeChord)
+	                         || (keyboardState.currentLayout == KeyboardLayoutType::KeyboardLayoutTypeChordLibrary);
+	bool chordColumnActive = (keyboardState.columnControl.leftColFunc == layout::ColumnControlFunction::CHORD)
+	                         || (keyboardState.columnControl.rightColFunc == layout::ColumnControlFunction::CHORD);
+	bool suppressChordMode = chordLayoutActive || chordColumnActive;
+
 	// Map from the current index of a note to its index in the previous note state.
 	//
 	// -1 if the note was not present in the previous
@@ -305,7 +316,8 @@ void KeyboardScreen::updateActiveNotes() {
 		else {
 			((MelodicInstrument*)activeInstrument)
 			    ->beginAuditioningForNote(modelStack, newNote, currentNotesState.notes[idx].velocity,
-			                              currentNotesState.notes[idx].mpeValues);
+			                              currentNotesState.notes[idx].mpeValues, MIDI_CHANNEL_NONE, 0,
+			                              suppressChordMode);
 		}
 
 		// Post sound logic for non-retrigger events
