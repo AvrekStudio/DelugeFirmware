@@ -1005,6 +1005,13 @@ PLACE_SDRAM_DATA Language english{
         {STRING_FOR_DEFAULT_HORIZONTAL_MENU, "Horizontal Menu"},
         {STRING_FOR_CHORD_KEYBOARD_MODE_ROW, "Chord Row Mode"},
         {STRING_FOR_CHORD_KEYBOARD_MODE_COLUMN, "Chord Column Mode"},
+        {STRING_FOR_CHORD_MODE, "Chord Mode"},
+        {STRING_FOR_MANUAL, "Manual"},
+        {STRING_FOR_STRUM, "Strum"},
+        {STRING_FOR_CHORD_MODE_SOURCE, "Stack From"},
+        {STRING_FOR_CHORD_NOTE_1, "Note 1"},
+        {STRING_FOR_CHORD_NOTE_2, "Note 2"},
+        {STRING_FOR_CHORD_NOTE_3, "Note 3"},
     },
 };
 } // namespace deluge::l10n::built_in

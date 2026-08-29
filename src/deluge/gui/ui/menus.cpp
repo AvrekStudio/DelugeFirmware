@@ -32,6 +32,7 @@
 #include "gui/menu_item/battery/level.h"
 #include "gui/menu_item/bend_range/main.h"
 #include "gui/menu_item/bend_range/per_finger.h"
+#include "gui/menu_item/chord_mode.h"
 #include "gui/menu_item/colour.h"
 #include "gui/menu_item/cv/cv2Mapping.h"
 #include "gui/menu_item/cv/selection.h"
@@ -415,6 +416,28 @@ PLACE_SDRAM_BSS Submenu arpMenu{
         &arpIncludeInKitArpMenu,
     },
 };
+
+// Chord Mode - 2 screens, paged with SCALE / CROSS SCREEN (same HorizontalMenuGroup mechanism as ARP's
+// BASIC/PATTERN pair below).
+// MAIN: ENABLED, TYPE (chord type), STRUM RATE (0 = STRUM off) all on one screen, SYNTH/KIT/MIDI select the slot,
+// SELECT turns it - same interaction as e.g. stutterMenu below.
+PLACE_SDRAM_BSS chord_mode::OnOff chordModeOnMenu{STRING_FOR_ENABLED, STRING_FOR_CHORD_MODE};
+PLACE_SDRAM_BSS chord_mode::Type chordModeTypeMenu{STRING_FOR_TYPE, STRING_FOR_TYPE};
+PLACE_SDRAM_BSS chord_mode::StrumRate chordModeStrumRateMenu{STRING_FOR_STRUM, STRING_FOR_STRUM};
+PLACE_SDRAM_BSS HorizontalMenu chordModeMainMenu{STRING_FOR_CHORD_MODE,
+                                                 {&chordModeOnMenu, &chordModeTypeMenu, &chordModeStrumRateMenu},
+                                                 HorizontalMenu::Layout::FIXED};
+
+// MANUAL: the 3 semitone offsets, same interaction as MAIN above.
+PLACE_SDRAM_BSS chord_mode::Offset chordModeOffset1Menu{STRING_FOR_CHORD_NOTE_1, STRING_FOR_CHORD_NOTE_1, 0};
+PLACE_SDRAM_BSS chord_mode::Offset chordModeOffset2Menu{STRING_FOR_CHORD_NOTE_2, STRING_FOR_CHORD_NOTE_2, 1};
+PLACE_SDRAM_BSS chord_mode::Offset chordModeOffset3Menu{STRING_FOR_CHORD_NOTE_3, STRING_FOR_CHORD_NOTE_3, 2};
+PLACE_SDRAM_BSS HorizontalMenu chordModeManualMenu{
+    STRING_FOR_MANUAL,
+    {&chordModeOffset1Menu, &chordModeOffset2Menu, &chordModeOffset3Menu},
+    HorizontalMenu::Layout::FIXED};
+
+PLACE_SDRAM_BSS HorizontalMenuGroup chordModeGroup{{&chordModeMainMenu, &chordModeManualMenu}, STRING_FOR_CHORD_MODE};
 
 PLACE_SDRAM_BSS Submenu arpMenuMIDIOrCV{
     STRING_FOR_ARPEGGIATOR,
@@ -1519,6 +1542,7 @@ PLACE_SDRAM_BSS Submenu soundEditorRootMenu{
     {
         &soundEditorRootActionsMenu,
         &soundMasterMenu,
+        &chordModeGroup,
         &arpMenu,
         &randomizerMenu,
         &audioCompMenu,

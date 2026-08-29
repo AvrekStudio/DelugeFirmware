@@ -25,8 +25,13 @@ namespace deluge::gui::menu_item {
 // A class to group multiple Horizontal menus into a single long Horizontal menu with paging
 class HorizontalMenuGroup final : public HorizontalMenu {
 public:
-	HorizontalMenuGroup(std::initializer_list<HorizontalMenu*> menus)
-	    : HorizontalMenu(l10n::String::STRING_FOR_NONE, {}), menus_{menus} {}
+	// newName is only ever seen as the row label wherever this group sits in an ordinary vertical menu list (e.g.
+	// chordModeGroup in menus.cpp) - once you're inside the group, the screen title always comes from whichever
+	// member menu is currently showing (see getTitle() below). Left at its default for a group that's only ever
+	// used loose in a horizontalMenusChain (e.g. arpMenuGroup) and never shown as a list row itself.
+	HorizontalMenuGroup(std::initializer_list<HorizontalMenu*> menus,
+	                    l10n::String newName = l10n::String::STRING_FOR_NONE)
+	    : HorizontalMenu(newName, {}), menus_{menus} {}
 
 	[[nodiscard]] std::string_view getTitle() const override;
 	bool focusChild(const MenuItem* child) override;
