@@ -21,6 +21,7 @@
 #include "gui/ui/keyboard/state_data.h"
 #include "gui/views/instrument_clip_view.h"
 #include "model/note/note_row_vector.h"
+#include "model/note_fx/note_fx_rack.h"
 #include "modulation/arpeggiator.h"
 
 class Song;
@@ -129,6 +130,9 @@ public:
 	String backedUpInstrumentDirPath[2];
 
 	bool affectEntire;
+
+	// NOTE FX RACK (SOUND menu): the clip's chain of note effects
+	deluge::note_fx::Rack noteFxRack;
 
 	bool onKeyboardScreen;
 

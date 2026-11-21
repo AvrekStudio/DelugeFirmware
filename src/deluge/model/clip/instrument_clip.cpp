@@ -137,6 +137,7 @@ void InstrumentClip::copyBasicsFrom(Clip const* otherClip) {
 	sequenceDirectionMode = otherInstrumentClip->sequenceDirectionMode;
 
 	affectEntire = otherInstrumentClip->affectEntire;
+	noteFxRack = otherInstrumentClip->noteFxRack;
 
 	memcpy(backedUpInstrumentSlot, otherInstrumentClip->backedUpInstrumentSlot, sizeof(backedUpInstrumentSlot));
 	memcpy(backedUpInstrumentSubSlot, otherInstrumentClip->backedUpInstrumentSubSlot,
@@ -2351,6 +2352,11 @@ void InstrumentClip::writeDataToFile(Serializer& writer, Song* song) {
 	if (output->type == OutputType::KIT) {
 		writer.writeAttribute("affectEntire", affectEntire);
 	}
+	{
+		uint8_t rackBytes[deluge::note_fx::Rack::kNumSaveBytes];
+		noteFxRack.toBytes(rackBytes);
+		writer.writeAttributeHexBytes("noteFxRack", rackBytes, deluge::note_fx::Rack::kNumSaveBytes);
+	}
 
 	Instrument* instrument = (Instrument*)output;
 
@@ -2636,6 +2642,12 @@ someError:
 
 		else if (!strcmp(tagName, "affectEntire")) {
 			affectEntire = reader.readTagOrAttributeValueInt();
+		}
+
+		else if (!strcmp(tagName, "noteFxRack")) {
+			uint8_t rackBytes[deluge::note_fx::Rack::kNumSaveBytes]{};
+			int32_t len = reader.readTagOrAttributeValueHexBytes(rackBytes, deluge::note_fx::Rack::kNumSaveBytes);
+			noteFxRack.fromBytes(rackBytes, len);
 		}
 
 		else if (!strcmp(tagName, "soundMidiCommand")) { // Only for pre V2.0 song files

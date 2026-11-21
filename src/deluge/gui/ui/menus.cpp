@@ -244,6 +244,7 @@ namespace params = deluge::modulation::params;
 #include "gui/menu_item/audio_clip/specific_output_source_selector.h"
 #include "gui/menu_item/generate/g_menus.inc"
 #include "gui/menu_item/midi/y_axis_to_cc1.h"
+#include "gui/menu_item/note_fx/rack_menu.h"
 
 // Arp --------------------------------------------------------------------------------------
 arpeggiator::PresetMode arpPresetModeMenu{STRING_FOR_PRESET, STRING_FOR_ARP_PRESET_MENU_TITLE};
@@ -1520,8 +1521,8 @@ PLACE_SDRAM_BSS Submenu soundEditorRootMenu{
     {
         &soundEditorRootActionsMenu,
         &soundMasterMenu,
-        &arpMenu,
-        &randomizerMenu,
+        &gui::menu_item::note_fx::noteFxRackMenu, // replaces ARP, RANDOMIZER and PLAY DIRECTION (now NOTE FX RACK
+                                                  // modules)
         &audioCompMenu,
         &soundFiltersMenu,
         &soundFXMenu,
@@ -1543,7 +1544,6 @@ PLACE_SDRAM_BSS Submenu soundEditorRootMenu{
         &bendMenu,
         &drumBendRangeMenu,
         &patchCablesMenu,
-        &sequenceDirectionMenu,
         &outputMidiSubmenu,
     },
 };
