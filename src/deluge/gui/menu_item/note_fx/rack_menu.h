@@ -67,6 +67,8 @@ public:
 	void drawName() override;
 	void selectEncoderAction(int32_t offset) override;
 	MenuItem* selectButtonPress() override;
+	MenuPermission checkPermissionToBeginSession(ModControllableAudio* modControllable, int32_t whichThing,
+	                                             ::MultiRange** currentRange) override;
 
 private:
 	Type choices_[static_cast<int32_t>(Type::NUM_TYPES)]{};

@@ -18,6 +18,7 @@
 #include "gui/menu_item/note_fx/rack_menu.h"
 #include "definitions_cxx.hpp"
 #include "gui/l10n/l10n.h"
+#include "gui/menu_item/vertical_title.h"
 #include "gui/ui/sound_editor.h"
 #include "gui/ui/ui.h"
 #include "gui/views/timeline_view.h"
@@ -50,18 +51,30 @@ namespace {
 // The slot the cursor is on - shared by the rack and its two lists.
 int32_t cursor = 0;
 
-// Set when EDIT opens a module's page: BACK from it then skips the action list and lands on the rack. Cleared
-// whenever the rack itself begins, so leaving the menu some other way can't leave it set.
-bool skipActionListOnReturn = false;
+// Set when a module's EDIT page is opened from one of the lists (EDIT, or a module just added): BACK from it then
+// skips the list and lands on the rack. Cleared whenever the rack itself begins, so leaving the menu some other way
+// can't leave it set.
+bool skipListOnReturn = false;
 
-// "NOTE FX" written bottom to top, 7 px wide x 43 px tall (the visible height) (column by column, 6 bytes each, LSB =
-// top).
-constexpr uint8_t kTitleStrip[] = {
-    0x44, 0x1F, 0x7C, 0x9F, 0x13, 0x01, 0x44, 0x10, 0x40, 0x44, 0x94, 0x01, 0x28, 0x10,
-    0x40, 0x44, 0x54, 0x01, 0x10, 0x1E, 0x78, 0x44, 0x34, 0x01, 0x28, 0x10, 0x40, 0x44,
-    0x14, 0x01, 0x44, 0x10, 0x40, 0x44, 0x14, 0x01, 0x44, 0x10, 0x7C, 0x84, 0x13, 0x01,
-};
-constexpr int32_t kStripWidth = 11;
+// The page EDIT opens for a module, or nullptr if it has none.
+MenuItem* editPageFor(Type type) {
+	switch (type) {
+	case Type::DIR:
+		return &noteFxDirEdit;
+	default:
+		return nullptr;
+	}
+}
+
+MenuPermission refuseIfSkipping() {
+	if (skipListOnReturn) {
+		skipListOnReturn = false;
+		return MenuPermission::NO; // SoundEditor::goUpOneLevel() skips an item that refuses
+	}
+	return MenuPermission::YES;
+}
+
+constexpr int32_t kStripWidth = kVerticalTitleWidth;
 
 // Rack layout
 constexpr int32_t kSlotX0 = 13;
@@ -155,9 +168,7 @@ void RackScreen::refresh() {
 }
 
 void RackScreen::drawTitleStrip() {
-	deluge::hid::display::oled_canvas::Canvas& image = deluge::hid::display::OLED::main;
-	image.drawGraphicMultiLine(kTitleStrip, 2, OLED_MAIN_TOPMOST_PIXEL, 7, OLED_MAIN_VISIBLE_HEIGHT, 6);
-	image.invertArea(0, kStripWidth, OLED_MAIN_TOPMOST_PIXEL, OLED_MAIN_HEIGHT_PIXELS - 1);
+	drawVerticalTitle("NOTE FX");
 }
 
 void RackScreen::drawList(const char* title, const char* const* items, int32_t count, int32_t selected) {
@@ -196,7 +207,7 @@ void RackScreen::drawList(const char* title, const char* const* items, int32_t c
 
 void RackMenu::beginSession(MenuItem* navigatedBackwardFrom) {
 	RackScreen::beginSession(navigatedBackwardFrom);
-	skipActionListOnReturn = false;
+	skipListOnReturn = false;
 	if (navigatedBackwardFrom == nullptr) {
 		// entering from the SOUND menu (not coming back from one of our lists)
 		cursor = 0;
@@ -345,11 +356,20 @@ void AddList::selectEncoderAction(int32_t offset) {
 
 MenuItem* AddList::selectButtonPress() {
 	Rack* rack = currentRack();
-	if (rack != nullptr && numChoices_ > 0) {
-		rack->add(cursor, choices_[selected_]);
+	if (rack != nullptr && numChoices_ > 0 && rack->add(cursor, choices_[selected_])) {
 		applyRack(currentRackClip());
+		// A module just added opens on its EDIT page; BACK from there lands on the rack.
+		if (MenuItem* page = editPageFor(choices_[selected_])) {
+			skipListOnReturn = true;
+			return page;
+		}
 	}
 	return nullptr; // back to the rack
+}
+
+MenuPermission AddList::checkPermissionToBeginSession(ModControllableAudio* modControllable, int32_t whichThing,
+                                                      ::MultiRange** currentRange) {
+	return refuseIfSkipping();
 }
 
 // ---- ActionList
@@ -411,13 +431,7 @@ void ActionList::renderOLED() {
 
 MenuPermission ActionList::checkPermissionToBeginSession(ModControllableAudio* modControllable, int32_t whichThing,
                                                          ::MultiRange** currentRange) {
-	// Coming back from a module's EDIT page: SoundEditor::goUpOneLevel() skips an item that refuses, so BACK goes
-	// straight to the rack.
-	if (skipActionListOnReturn) {
-		skipActionListOnReturn = false;
-		return MenuPermission::NO;
-	}
-	return MenuPermission::YES;
+	return refuseIfSkipping(); // coming back from a module's EDIT page: BACK goes straight to the rack
 }
 
 void ActionList::drawName() {
@@ -437,13 +451,11 @@ MenuItem* ActionList::selectButtonPress() {
 	}
 	switch (actions_[selected_]) {
 	case Action::EDIT:
-		switch (rack->slots[cursor].type) {
-		case Type::DIR:
-			skipActionListOnReturn = true;
-			return &noteFxDirEdit;
-		default:
-			return NO_NAVIGATION;
+		if (MenuItem* page = editPageFor(rack->slots[cursor].type)) {
+			skipListOnReturn = true;
+			return page;
 		}
+		return NO_NAVIGATION;
 	case Action::TOGGLE:
 		rack->toggle(cursor);
 		break;
