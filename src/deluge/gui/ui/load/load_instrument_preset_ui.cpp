@@ -661,6 +661,7 @@ gotAnInstrument:
 		initialInstrument->defaultVelocity = instrumentToReplace->defaultVelocity;
 		initialInstrument->noteDefaults = instrumentToReplace->noteDefaults;
 		initialInstrument->noteFxValues = instrumentToReplace->noteFxValues;
+		initialInstrument->noteFxArpSteps = instrumentToReplace->noteFxArpSteps;
 
 		// If we're here, we know the Clip is not playing in the arranger (and doesn't even have an instance in there)
 
@@ -994,6 +995,7 @@ giveUsedError:
 		newInstrument->defaultVelocity = instrumentToReplace->defaultVelocity;
 		newInstrument->noteDefaults = instrumentToReplace->noteDefaults;
 		newInstrument->noteFxValues = instrumentToReplace->noteFxValues;
+		newInstrument->noteFxArpSteps = instrumentToReplace->noteFxArpSteps;
 
 		// If we're here, we know the Clip is not playing in the arranger (and doesn't even have an instance in there)
 

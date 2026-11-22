@@ -40,12 +40,13 @@ public:
 
 /// What a module needs to know about time and the track.
 struct Context {
-	double now = 0;                  ///< current tick
-	double barTicks = 192;           ///< ticks in a bar
-	bool playing = false;            ///< transport running
-	int32_t trackNote = 60;          ///< the track's default NOTE (MASTER menu)
-	int32_t trackLenEighths = 8;     ///< the track's LEN (MASTER menu): eighths of a step, 0 = INF
-	const int16_t* params = nullptr; ///< this module's effective parameter values
+	double now = 0;                     ///< current tick
+	double barTicks = 192;              ///< ticks in a bar
+	bool playing = false;               ///< transport running
+	int32_t trackNote = 60;             ///< the track's default NOTE (MASTER menu)
+	int32_t trackLenEighths = 8;        ///< the track's LEN (MASTER menu): eighths of a step, 0 = INF
+	const int16_t* params = nullptr;    ///< this module's effective parameter values
+	const ArpSteps* arpSteps = nullptr; ///< the ARP's steps (ON / OFF, note offsets)
 };
 
 /// Small deterministic random generator (xorshift).
@@ -127,8 +128,11 @@ public:
 	void advance(const Context& c, NoteSink& out) override;
 	void reset(NoteSink& out) override;
 	Random random;
+	/// The step last played (for the grid), -1 when not running.
+	[[nodiscard]] int32_t lastStep() const { return running_ ? lastStep_ : -1; }
 
 private:
+	int32_t lastStep_ = -1;
 	void rebuild(const Context& c);
 	void playStep(double at, const Context& c, NoteSink& out);
 	void updateChord(const Context& c, NoteSink& out);
@@ -140,7 +144,7 @@ private:
 	int32_t patternLength_ = 0;
 	int32_t builtStyle_ = -1; ///< STYLE the pattern was built with (rebuilt when it changes, e.g. turned while playing)
 	int32_t position_ = 0;    ///< step within pattern x octaves
-	int32_t cycles_ = 0;      ///< full cycles played (REPEAT)
+	int32_t step_ = 0;        ///< ARP sequence step about to play (0..LEN-1)
 	bool running_ = false;
 	double nextStep_ = 0;
 	double lastRetrigTime_ = 0;
@@ -190,6 +194,15 @@ public:
 	/// True if anything in the chain changes notes (otherwise notes can go straight through).
 	[[nodiscard]] bool active() const { return count_ > 0; }
 	[[nodiscard]] Type typeAt(int32_t i) const { return types_[i]; }
+	/// The ARP step last played (for the grid), -1 if there's no ARP running.
+	[[nodiscard]] int32_t arpStep() const {
+		for (int32_t i = 0; i < count_; i++) {
+			if (types_[i] == Type::ARP) {
+				return arp_.lastStep();
+			}
+		}
+		return -1;
+	}
 	[[nodiscard]] int32_t count() const { return count_; }
 
 	/// Parameters each module uses: the track's values, or a p-lock's while a locked note is held.

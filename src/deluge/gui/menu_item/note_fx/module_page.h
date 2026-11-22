@@ -17,6 +17,8 @@
 
 #pragma once
 
+#include "definitions_cxx.hpp"
+#include "gui/colour/rgb.h"
 #include "gui/menu_item/note_fx/rack_menu.h"
 #include "model/note_fx/note_fx_params.h"
 
@@ -37,10 +39,21 @@ public:
 	MenuItem* selectButtonPress() override;
 	ActionResult buttonAction(deluge::hid::Button b, bool on, bool inCardRoutine) override;
 
-	/// Grid pads while this page is open: holding a note selects it for p-locking. Returns true if dealt with.
+	void endSession() override;
+	/// ARP: follows the step playing on the grid.
+	ActionResult timerCallback() override;
+
+	/// Grid pads while this page is open - ARP: its step editor; the others: holding a note selects it for p-locking.
 	bool padAction(int32_t x, int32_t y, bool on);
+	/// ARP: the step held in its editor + the vertical encoder = that step's note offset, semitone by semitone.
+	bool stepEncoderAction(int32_t offset);
+	/// ARP: draws its step editor on the grid. Returns false if this page doesn't use the grid.
+	bool renderPads(uint32_t whichRows, RGB image[][kDisplayWidth + kSideBarWidth],
+	                uint8_t occupancyMask[][kDisplayWidth + kSideBarWidth]);
 
 private:
+	bool arpPadAction(int32_t x, int32_t y, bool on);
+	void lightButtons() const;
 	/// The parameter shown in a cell, or -1 for an empty cell.
 	int32_t cellParam(int32_t cell) const;
 	int32_t value(int32_t param, bool* locked) const;
@@ -55,7 +68,14 @@ extern ModulePage noteFxArpPage;
 extern ModulePage noteFxEuclPage;
 extern ModulePage noteFxMonoPage;
 
-/// Called by the sound editor for grid pads: routes them to a module page if one is open.
+/// Clip view: the notes the NOTE FX EUCL module plays (fixed / track note) shown in red where they fall on the grid.
+void renderEuclidNotes(uint32_t whichRows, RGB image[][kDisplayWidth + kSideBarWidth]);
+
+/// Called by the sound editor: route grid pads / the vertical encoder / the grid's rendering to the open module page.
 bool modulePagePadAction(int32_t x, int32_t y, bool on);
+bool modulePageVerticalEncoderAction(int32_t offset);
+/// Returns true if the open module page draws the grid (then it has drawn `image` if given).
+bool modulePageRenderPads(uint32_t whichRows, RGB image[][kDisplayWidth + kSideBarWidth],
+                          uint8_t occupancyMask[][kDisplayWidth + kSideBarWidth]);
 
 } // namespace deluge::gui::menu_item::note_fx

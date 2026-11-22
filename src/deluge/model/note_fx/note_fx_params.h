@@ -36,7 +36,7 @@ enum ArpParam : uint8_t {
 	ARP_OCTAVE,
 	ARP_CHORD,
 	ARP_RETRIG,
-	ARP_REPEAT,
+	ARP_LEN,      ///< number of steps of the ARP sequence (1..16), each step ON / OFF with its own note offset
 	ARP_SYNC,     ///< under RATE: clicking RATE shows it
 	ARP_FREE_RATE ///< RATE while SYNC is OFF: 0..100%
 };
@@ -104,6 +104,41 @@ constexpr int32_t kEuclNoteTrack = -1;
 // EUCL GATE: TRK = the track's LEN (MASTER menu), then 0..200% of a step
 constexpr int32_t kEuclGateTrack = -1;
 
+/// The ARP's sequence of steps (Digitone style, edited on the grid): each step ON (plays) or OFF (a silence - the
+/// arpeggio still moves on to its next note), and a note offset in semitones.
+constexpr int32_t kArpSteps = 16;
+constexpr int32_t kArpOffsetMax = 24;
+struct ArpSteps {
+	uint16_t on = 0xFFFF;
+	std::array<int8_t, kArpSteps> offset{};
+
+	[[nodiscard]] bool isOn(int32_t step) const { return (on >> step) & 1; }
+	void toggle(int32_t step) { on ^= static_cast<uint16_t>(1u << step); }
+	void setOffset(int32_t step, int32_t semitones) {
+		semitones =
+		    semitones < -kArpOffsetMax ? -kArpOffsetMax : (semitones > kArpOffsetMax ? kArpOffsetMax : semitones);
+		offset[step] = static_cast<int8_t>(semitones);
+	}
+
+	static constexpr int32_t kNumSaveBytes = 2 + kArpSteps;
+	void toBytes(uint8_t* b) const {
+		b[0] = on & 0xFF;
+		b[1] = on >> 8;
+		for (int32_t i = 0; i < kArpSteps; i++) {
+			b[2 + i] = static_cast<uint8_t>(offset[i]);
+		}
+	}
+	void fromBytes(const uint8_t* b, int32_t len) {
+		*this = ArpSteps{};
+		if (len >= 2) {
+			on = static_cast<uint16_t>(b[0] | (b[1] << 8));
+		}
+		for (int32_t i = 0; i < kArpSteps && 2 + i < len; i++) {
+			setOffset(i, static_cast<int8_t>(b[2 + i]));
+		}
+	}
+};
+
 struct ParamSpec {
 	const char* label; ///< 4 letters max
 	int16_t min;
@@ -120,7 +155,7 @@ inline const ParamSpec* paramSpecs(Type t, int32_t* count) {
 	    {"OCT", -5, 5, 0},
 	    {"CHRD", -2, 2, 0},
 	    {"RTRG", 0, kNumRetrigs - 1, 0},
-	    {"RPT", 0, 16, 0},
+	    {"LEN", 1, 16, 16},
 	    {"SYNC", 0, 2, SYNC_ON},
 	    {"RATE", 0, 100, 50},
 	};
@@ -239,13 +274,8 @@ inline void formatParam(Type t, int32_t p, int32_t value, char* buf, size_t size
 		case ARP_RETRIG:
 			snprintf(buf, size, "%s", kRetrigShort[value]);
 			return;
-		case ARP_REPEAT:
-			if (value == 0) {
-				snprintf(buf, size, "--");
-			}
-			else {
-				snprintf(buf, size, "x%d", static_cast<int>(value));
-			}
+		case ARP_LEN:
+			snprintf(buf, size, "%d", static_cast<int>(value));
 			return;
 		case ARP_SYNC:
 			snprintf(buf, size, "%s", value == SYNC_OFF ? "OFF" : (value == SYNC_ON ? "ON" : "LOCK"));

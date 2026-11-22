@@ -93,6 +93,8 @@ public:
 	deluge::track_defaults::NoteDefaults noteDefaults;
 	/// NOTE FX modules' values for this track (ARP, EUCL, MONO ...); grid notes can p-lock them (clip's noteFxLocks)
 	deluge::note_fx::Values noteFxValues;
+	/// the NOTE FX ARP's steps (ON / OFF, note offsets), edited on the grid
+	deluge::note_fx::ArpSteps noteFxArpSteps;
 	LearnedMIDI midiInput;
 
 protected:

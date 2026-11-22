@@ -36,6 +36,8 @@ public:
 	bool noteOff(SoundInstrument& track, ModelStackWithThreeMainThings* modelStack, int32_t note);
 	/// Called for every audio block (even when the track's voices aren't rendering).
 	void render(SoundInstrument& track, ModelStackWithThreeMainThings* modelStack, int32_t numSamples);
+	/// The ARP step last played (for the grid), -1 if the ARP isn't running.
+	[[nodiscard]] int32_t arpStep() const { return chain_.arpStep(); }
 	/// Ends everything (e.g. the track is being removed).
 	void stop(SoundInstrument& track, ModelStackWithThreeMainThings* modelStack);
 

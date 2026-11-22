@@ -2518,6 +2518,7 @@ void View::navigateThroughPresetsForInstrumentClip(int32_t offset, ModelStackWit
 				newInstrument->defaultVelocity = oldNonAudioInstrument->defaultVelocity;
 				newInstrument->noteDefaults = oldNonAudioInstrument->noteDefaults;
 				newInstrument->noteFxValues = oldNonAudioInstrument->noteFxValues;
+				newInstrument->noteFxArpSteps = oldNonAudioInstrument->noteFxArpSteps;
 			}
 gotAnInstrument:
 
@@ -2613,6 +2614,7 @@ getOut:
 			newInstrument->defaultVelocity = oldInstrument->defaultVelocity;
 			newInstrument->noteDefaults = oldInstrument->noteDefaults;
 			newInstrument->noteFxValues = oldInstrument->noteFxValues;
+			newInstrument->noteFxArpSteps = oldInstrument->noteFxArpSteps;
 
 			// If we're here, we know the Clip is not playing in the arranger (and doesn't even have an instance in
 			// there)

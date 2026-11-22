@@ -333,7 +333,7 @@ void ArpModule::noteOn(int32_t note, int32_t velocity, const Context& c, NoteSin
 	const int32_t retrig = c.params[ARP_RETRIG];
 	if (wasEmpty || retrig == 1 /* NOTE */) {
 		position_ = 0;
-		cycles_ = 0;
+		step_ = 0;
 	}
 	if (wasEmpty || !running_) {
 		running_ = true;
@@ -372,26 +372,28 @@ void ArpModule::playStep(double at, const Context& c, NoteSink& out) {
 	if (total <= 0) {
 		return;
 	}
-	const int32_t repeat = c.params[ARP_REPEAT];
-	if (repeat > 0 && cycles_ >= repeat) {
-		return; // REPEAT: done until re-triggered
-	}
+	// the ARP sequence: LEN steps, each ON or OFF with a note offset
+	const int32_t len = std::clamp<int32_t>(c.params[ARP_LEN], 1, kArpSteps);
+	const int32_t step = step_ % len;
+	step_ = (step + 1) % len;
+	lastStep_ = step;
+	const bool stepOn = c.arpSteps == nullptr || c.arpSteps->isOn(step);
+	const int32_t stepOffset = c.arpSteps != nullptr ? c.arpSteps->offset[step] : 0;
 	const int32_t idx = position_ % total;
 	const int32_t octave = idx / patternLength_;
 	int32_t entry = pattern_[idx % patternLength_];
 	if (entry == -2) {
 		entry = random.below(held_.count());
 	}
-	position_++;
+	position_++; // the arpeggio moves on even on an OFF step: that's what makes the variations
 	if (position_ >= total) {
 		position_ = 0;
-		cycles_++;
 	}
-	if (entry < 0 || entry >= held_.count()) {
-		return; // a rest
+	if (!stepOn || entry < 0 || entry >= held_.count()) {
+		return; // a silence
 	}
 	const int32_t direction = c.params[ARP_OCTAVE] < 0 ? -1 : 1;
-	const int32_t note = held_[entry].note + direction * 12 * octave;
+	const int32_t note = held_[entry].note + direction * 12 * octave + stepOffset;
 	if (note < 0 || note > 127) {
 		return;
 	}
@@ -420,7 +422,7 @@ void ArpModule::advance(const Context& c, NoteSink& out) {
 		const double every = c.barTicks * kRetrigBars192[retrig] / 192.0;
 		if (std::floor(c.now / every) > std::floor(lastRetrigTime_ / every)) {
 			position_ = 0;
-			cycles_ = 0;
+			step_ = 0;
 		}
 	}
 	lastRetrigTime_ = c.now;
@@ -452,7 +454,7 @@ void ArpModule::reset(NoteSink& out) {
 	held_.clear();
 	running_ = false;
 	position_ = 0;
-	cycles_ = 0;
+	step_ = 0;
 	patternLength_ = 0;
 }
 

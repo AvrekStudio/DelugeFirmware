@@ -69,6 +69,7 @@ void Runner::updateParams(InstrumentClip* clip, SoundInstrument& track) {
 	context_.playing = playbackHandler.isEitherClockActive();
 	context_.trackNote = track.noteDefaults.note;
 	context_.trackLenEighths = track.noteDefaults.lenEighths;
+	context_.arpSteps = &track.noteFxArpSteps;
 	context_.now = clock_;
 }
 

@@ -3540,6 +3540,7 @@ traverseClips:
 	newOutput->defaultVelocity = oldOutput->defaultVelocity;
 	newOutput->noteDefaults = oldOutput->noteDefaults;
 	newOutput->noteFxValues = oldOutput->noteFxValues;
+	newOutput->noteFxArpSteps = oldOutput->noteFxArpSteps;
 
 	newOutput->colour = oldOutput->colour;
 	oldOutput->colour = 0;

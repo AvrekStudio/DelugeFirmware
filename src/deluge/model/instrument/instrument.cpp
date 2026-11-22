@@ -87,6 +87,9 @@ bool Instrument::writeDataToFile(Serializer& writer, Clip* clipForSavingOutputOn
 		uint8_t fxBytes[deluge::note_fx::Values::kNumSaveBytes];
 		noteFxValues.toBytes(fxBytes);
 		writer.writeAttributeHexBytes("noteFxValues", fxBytes, deluge::note_fx::Values::kNumSaveBytes);
+		uint8_t stepBytes[deluge::note_fx::ArpSteps::kNumSaveBytes];
+		noteFxArpSteps.toBytes(stepBytes);
+		writer.writeAttributeHexBytes("noteFxArpSteps", stepBytes, deluge::note_fx::ArpSteps::kNumSaveBytes);
 	}
 
 	return Output::writeDataToFile(writer, clipForSavingOutputOnly, song);
@@ -135,6 +138,12 @@ bool Instrument::readTagFromFile(Deserializer& reader, char const* tagName) {
 		if (v >= 0 && v <= 127) {
 			noteDefaults.note = static_cast<uint8_t>(v);
 		}
+	}
+
+	else if (!strcmp(tagName, "noteFxArpSteps")) {
+		uint8_t stepBytes[deluge::note_fx::ArpSteps::kNumSaveBytes]{};
+		int32_t len = reader.readTagOrAttributeValueHexBytes(stepBytes, deluge::note_fx::ArpSteps::kNumSaveBytes);
+		noteFxArpSteps.fromBytes(stepBytes, len);
 	}
 
 	else if (!strcmp(tagName, "noteFxValues")) {

@@ -22,6 +22,7 @@
 #include "gui/colour/colour.h"
 #include "gui/context_menu/stem_export/cancel_stem_export.h"
 #include "gui/l10n/l10n.h"
+#include "gui/menu_item/note_fx/module_page.h"
 #include "gui/menu_item/colour.h"
 #include "gui/menu_item/file_selector.h"
 #include "gui/menu_item/horizontal_menu.h"
@@ -7616,6 +7617,7 @@ bool InstrumentClipView::renderMainPads(uint32_t whichRows, RGB image[][kDisplay
 	                    currentSong->xZoom[NAVIGATION_CLIP], kDisplayWidth, kDisplayWidth + kSideBarWidth,
 	                    drawUndefinedArea);
 	render_selected_note_pulse(whichRows, image);
+	deluge::gui::menu_item::note_fx::renderEuclidNotes(whichRows, image); // NOTE FX EUCL's notes, in red
 	PadLEDs::renderingLock = false;
 
 	return true;

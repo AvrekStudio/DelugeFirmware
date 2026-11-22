@@ -71,11 +71,11 @@ void TwoRowMenu::select(int32_t index) {
 
 void TwoRowMenu::lightButtons() const {
 	using namespace indicator_leds;
-	const int32_t col = selectedIndex() % kColumns;
-	setLedState(IndicatorLED::SYNTH, col == 0);
-	setLedState(IndicatorLED::KIT, col == 1);
-	setLedState(IndicatorLED::MIDI, col == 2);
-	setLedState(IndicatorLED::CV, col == 3);
+	// SYNTH / KIT / MIDI / CV pick the column: all lit while browsing the parameters
+	setLedState(IndicatorLED::SYNTH, true);
+	setLedState(IndicatorLED::KIT, true);
+	setLedState(IndicatorLED::MIDI, true);
+	setLedState(IndicatorLED::CV, true);
 	setLedState(IndicatorLED::SYNC_SCALING, true);
 	setLedState(IndicatorLED::TRIPLETS, true);
 	setLedState(IndicatorLED::LOAD, true);
@@ -90,6 +90,10 @@ void TwoRowMenu::beginSession(MenuItem* navigatedBackwardFrom) {
 
 void TwoRowMenu::endSession() {
 	HorizontalMenu::endSession();
+	indicator_leds::setLedState(IndicatorLED::SYNTH, false);
+	indicator_leds::setLedState(IndicatorLED::KIT, false);
+	indicator_leds::setLedState(IndicatorLED::MIDI, false);
+	indicator_leds::setLedState(IndicatorLED::CV, false);
 	indicator_leds::setLedState(IndicatorLED::LOAD, false);
 	view.setTimeBaseScaleLedState();
 	TimelineView* timelineView = getRootUI() != nullptr ? getRootUI()->toTimelineView() : nullptr;
@@ -151,8 +155,15 @@ ActionResult TwoRowMenu::buttonAction(hid::Button b, bool on, bool inCardRoutine
 	}
 	if (b == SYNC_SCALING || b == TRIPLETS) {
 		if (on) {
-			const int32_t row = b == SYNC_SCALING ? 0 : 1;
-			select(row * kColumns + selectedIndex() % kColumns);
+			const int32_t rowStart = (b == SYNC_SCALING ? 0 : 1) * kColumns;
+			int32_t target = rowStart + selectedIndex() % kColumns;
+			// that cell is empty: the row's first used one
+			for (int32_t col = 0;
+			     col < kColumns && (target >= static_cast<int32_t>(items.size()) || !isItemRelevant(items[target]));
+			     col++) {
+				target = rowStart + col;
+			}
+			select(target);
 		}
 		return ActionResult::DEALT_WITH;
 	}

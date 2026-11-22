@@ -249,6 +249,12 @@ static bool isOtherModSourcePadPressed(int32_t x, int32_t y) {
 bool SoundEditor::renderMainPads(uint32_t whichRows, RGB image[][kDisplayWidth + kSideBarWidth],
                                  uint8_t occupancyMask[][kDisplayWidth + kSideBarWidth], bool drawUndefinedArea) {
 
+	// The NOTE FX ARP's page uses the grid as its step editor
+	if (menu_item::note_fx::modulePageRenderPads(whichRows, image, occupancyMask)) {
+		haveRenderedPads = true;
+		return true;
+	}
+
 	if (!image) {
 		D_PRINTLN("no image");
 
@@ -1867,6 +1873,9 @@ bool SoundEditor::isEditingAutomationViewParam() {
 }
 
 ActionResult SoundEditor::verticalEncoderAction(int32_t offset, bool inCardRoutine) {
+	if (menu_item::note_fx::modulePageVerticalEncoderAction(offset)) {
+		return ActionResult::DEALT_WITH; // NOTE FX ARP: a held step's note offset
+	}
 	if (inNoteEditor()) {
 		return instrumentClipView.handleNoteEditorVerticalEncoderAction(offset, inCardRoutine);
 	}

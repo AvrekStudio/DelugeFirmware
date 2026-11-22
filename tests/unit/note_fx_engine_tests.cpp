@@ -123,27 +123,29 @@ TEST(NoteFxEngineTests, arpStepsThroughHeldNotesAndEndsThem) {
 	CHECK_EQUAL(0, r.sounding());
 }
 
-TEST(NoteFxEngineTests, arpOctavesAndRepeat) {
+TEST(NoteFxEngineTests, arpStepsOnOffAndOffsets) {
 	arpDefaults();
-	arpParams[ARP_OCTAVE] = -1;
-	arpParams[ARP_REPEAT] = 1;
+	arpParams[ARP_OCTAVE] = -1; // the note, then an octave lower
+	arpParams[ARP_LEN] = 4;
+	ArpSteps steps;
+	steps.toggle(1);       // step 2 OFF
+	steps.setOffset(2, 2); // step 3: +2 semitones
 	ArpModule arp;
 	Recorder r;
 	Context c;
-	c.barTicks = 192;
+	c.barTicks = 192; // 12 ticks per step
 	c.params = arpParams;
+	c.arpSteps = &steps;
 	arp.noteOn(60, 100, c, r);
-	arp.noteOn(64, 100, c, r); // same tick: both held before any step
-	r.events.clear();
-	arp.reset(r);
-	r.events.clear();
-	ArpModule arp2;
-	arp2.noteOn(60, 100, c, r);
-	for (int t = 0; t <= 100; t++) {
+	for (int t = 0; t <= 95; t++) { // 8 steps
 		c.now = t;
-		arp2.advance(c, r);
+		arp.advance(c, r);
 	}
-	STRCMP_EQUAL("60 48 ", r.ons().c_str()); // one cycle (x1): the note, then an octave lower, then stop
+	// arpeggio 60 48 60 48 ...; step 2 silent (its 48 is skipped, the arpeggio moves on), step 3 +2, LEN 4 loops
+	STRCMP_EQUAL("60 62 48 60 62 48 ", r.ons().c_str());
+	CHECK_EQUAL(-1, steps.offset[0] - 1);
+	steps.setOffset(5, 99);
+	CHECK_EQUAL(kArpOffsetMax, steps.offset[5]);
 }
 
 TEST(NoteFxEngineTests, monoLastLegatoAndRetrig) {
