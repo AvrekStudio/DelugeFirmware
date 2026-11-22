@@ -50,6 +50,10 @@ namespace {
 // The slot the cursor is on - shared by the rack and its two lists.
 int32_t cursor = 0;
 
+// Set when EDIT opens a module's page: BACK from it then skips the action list and lands on the rack. Cleared
+// whenever the rack itself begins, so leaving the menu some other way can't leave it set.
+bool skipActionListOnReturn = false;
+
 // "NOTE FX" written bottom to top, 7 px wide x 43 px tall (the visible height) (column by column, 6 bytes each, LSB =
 // top).
 constexpr uint8_t kTitleStrip[] = {
@@ -192,6 +196,7 @@ void RackScreen::drawList(const char* title, const char* const* items, int32_t c
 
 void RackMenu::beginSession(MenuItem* navigatedBackwardFrom) {
 	RackScreen::beginSession(navigatedBackwardFrom);
+	skipActionListOnReturn = false;
 	if (navigatedBackwardFrom == nullptr) {
 		// entering from the SOUND menu (not coming back from one of our lists)
 		cursor = 0;
@@ -404,6 +409,17 @@ void ActionList::renderOLED() {
 	drawList(title, names, numActions_, selected_);
 }
 
+MenuPermission ActionList::checkPermissionToBeginSession(ModControllableAudio* modControllable, int32_t whichThing,
+                                                         ::MultiRange** currentRange) {
+	// Coming back from a module's EDIT page: SoundEditor::goUpOneLevel() skips an item that refuses, so BACK goes
+	// straight to the rack.
+	if (skipActionListOnReturn) {
+		skipActionListOnReturn = false;
+		return MenuPermission::NO;
+	}
+	return MenuPermission::YES;
+}
+
 void ActionList::drawName() {
 	static constexpr const char* kShort[] = {"EDIT", "ONOF", "MOVR", "MOVL", "DEL"};
 	display->setText(kShort[static_cast<int32_t>(actions_[selected_])]);
@@ -423,6 +439,7 @@ MenuItem* ActionList::selectButtonPress() {
 	case Action::EDIT:
 		switch (rack->slots[cursor].type) {
 		case Type::DIR:
+			skipActionListOnReturn = true;
 			return &noteFxDirEdit;
 		default:
 			return NO_NAVIGATION;

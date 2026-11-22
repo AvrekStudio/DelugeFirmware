@@ -83,6 +83,8 @@ public:
 	void drawName() override;
 	void selectEncoderAction(int32_t offset) override;
 	MenuItem* selectButtonPress() override;
+	MenuPermission checkPermissionToBeginSession(ModControllableAudio* modControllable, int32_t whichThing,
+	                                             ::MultiRange** currentRange) override;
 
 private:
 	enum class Action : uint8_t { EDIT, TOGGLE, MOVE_RIGHT, MOVE_LEFT, DEL };
