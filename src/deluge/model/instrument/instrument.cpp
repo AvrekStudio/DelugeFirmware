@@ -81,6 +81,9 @@ bool Instrument::writeDataToFile(Serializer& writer, Clip* clipForSavingOutputOn
 			writer.writeAttribute("presetFolder", dirPath.get());
 		}
 		writer.writeAttribute("defaultVelocity", defaultVelocity);
+		writer.writeAttribute("defaultNoteLen", noteDefaults.lenEighths);
+		writer.writeAttribute("defaultNote", noteDefaults.note);
+		writer.writeAttribute("defaultNoteScaleLock", noteDefaults.scaleLock);
 	}
 
 	return Output::writeDataToFile(writer, clipForSavingOutputOnly, song);
@@ -115,6 +118,24 @@ bool Instrument::readTagFromFile(Deserializer& reader, char const* tagName) {
 		if (defaultVelocity == 0 || defaultVelocity >= 128) {
 			defaultVelocity = FlashStorage::defaultVelocity;
 		}
+	}
+
+	else if (!strcmp(tagName, "defaultNoteLen")) {
+		int32_t v = reader.readTagOrAttributeValueInt();
+		if (v >= 0 && v <= deluge::track_defaults::kLenMax) {
+			noteDefaults.lenEighths = static_cast<int16_t>(v);
+		}
+	}
+
+	else if (!strcmp(tagName, "defaultNote")) {
+		int32_t v = reader.readTagOrAttributeValueInt();
+		if (v >= 0 && v <= 127) {
+			noteDefaults.note = static_cast<uint8_t>(v);
+		}
+	}
+
+	else if (!strcmp(tagName, "defaultNoteScaleLock")) {
+		noteDefaults.scaleLock = reader.readTagOrAttributeValueInt() != 0;
 	}
 
 	else if (!strcmp(tagName, "presetFolder")) {

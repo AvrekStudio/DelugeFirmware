@@ -101,6 +101,7 @@ add_executable(UnitTests
         fast_pythag_tests.cpp
         tick_interpolation_tests.cpp
         note_fx_rack_tests.cpp
+        track_note_defaults_tests.cpp
 )
 add_test(NAME UnitTests
         COMMAND UnitTests)

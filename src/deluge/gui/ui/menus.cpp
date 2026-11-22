@@ -245,6 +245,8 @@ namespace params = deluge::modulation::params;
 #include "gui/menu_item/generate/g_menus.inc"
 #include "gui/menu_item/midi/y_axis_to_cc1.h"
 #include "gui/menu_item/note_fx/rack_menu.h"
+#include "gui/menu_item/track_defaults/track_defaults_menus.h"
+#include "gui/menu_item/two_row_menu.h"
 
 // Arp --------------------------------------------------------------------------------------
 arpeggiator::PresetMode arpPresetModeMenu{STRING_FOR_PRESET, STRING_FOR_ARP_PRESET_MENU_TITLE};
@@ -1485,9 +1487,15 @@ PLACE_SDRAM_BSS patched_param::Pan panMenu{STRING_FOR_PAN, params::LOCAL_PAN};
 
 PLACE_SDRAM_BSS PatchCables patchCablesMenu{STRING_FOR_MOD_MATRIX};
 
-PLACE_SDRAM_BSS HorizontalMenu soundMasterMenu{
+PLACE_SDRAM_BSS gui::menu_item::track_defaults::Len trackNoteLengthMenu{STRING_FOR_DEFAULT_NOTE_LENGTH};
+PLACE_SDRAM_BSS gui::menu_item::track_defaults::Note trackNoteMenu{STRING_FOR_NOTE};
+PLACE_SDRAM_BSS gui::menu_item::track_defaults::ScaleLock trackNoteScaleLockMenu{STRING_FOR_SCALE};
+
+// Two rows of four; the second row's LEN / NOTE / SCL (the track's default note) only show for synth tracks.
+PLACE_SDRAM_BSS TwoRowMenu soundMasterMenu{
     STRING_FOR_MASTER,
-    {&synthModeMenu, &volumeMenu, &panMenu, &masterTransposeMenu, &vibratoMenu},
+    {&synthModeMenu, &volumeMenu, &panMenu, &masterTransposeMenu, &vibratoMenu, &trackNoteLengthMenu, &trackNoteMenu,
+     &trackNoteScaleLockMenu},
 };
 
 PLACE_SDRAM_BSS HorizontalMenuGroup sourceMenuGroup{
