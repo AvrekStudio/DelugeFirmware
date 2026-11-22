@@ -71,11 +71,12 @@ void TwoRowMenu::select(int32_t index) {
 
 void TwoRowMenu::lightButtons() const {
 	using namespace indicator_leds;
-	// SYNTH / KIT / MIDI / CV pick the column: all lit while browsing the parameters
-	setLedState(IndicatorLED::SYNTH, true);
-	setLedState(IndicatorLED::KIT, true);
-	setLedState(IndicatorLED::MIDI, true);
-	setLedState(IndicatorLED::CV, true);
+	// SYNTH / KIT / MIDI / CV pick the column: the selected one is lit
+	const int32_t col = selectedIndex() % kColumns;
+	setLedState(IndicatorLED::SYNTH, col == 0);
+	setLedState(IndicatorLED::KIT, col == 1);
+	setLedState(IndicatorLED::MIDI, col == 2);
+	setLedState(IndicatorLED::CV, col == 3);
 	setLedState(IndicatorLED::SYNC_SCALING, true);
 	setLedState(IndicatorLED::TRIPLETS, true);
 	setLedState(IndicatorLED::LOAD, true);

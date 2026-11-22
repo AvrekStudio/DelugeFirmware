@@ -122,6 +122,7 @@ void applyRack(InstrumentClip* clip) {
 	if (clip == nullptr) {
 		return;
 	}
+	uiNeedsRendering(getRootUI(), 0xFFFFFFFF, 0); // the clip's grid shows what some modules play (EUCL)
 	const Rack& rack = clip->noteFxRack;
 	SequenceDirection wanted =
 	    rack.active(Type::DIR) ? static_cast<SequenceDirection>(rack.dirMode) : SequenceDirection::FORWARD;

@@ -61,6 +61,9 @@ struct HeldNote {
 
 // ARP step editor: the step (column) held, -1 = none
 int32_t arpHeldStep = -1;
+// ARP step editor: the note offset shown on row 4 (the vertical encoder scrolls it; it follows a held step)
+int32_t arpView = 0;
+constexpr int32_t kArpViewMax = kArpOffsetMax - 3;
 // the step playing when the grid was last drawn
 int32_t arpDrawnStep = -1;
 constexpr int32_t kPlayheadRefreshMs = 25;
@@ -72,6 +75,7 @@ const RGB kStepRow4Dim{70, 55, 30};   // row 4 when the step's note is moved up 
 const RGB kStepOn{240, 240, 240};     // row 8: ON
 const RGB kStepOff{220, 30, 30};      // row 8: OFF
 const RGB kStepPlaying{40, 200, 255}; // row 8: the step playing
+const RGB kStepOutOfView{60, 35, 10}; // a step's note above / below the rows shown: dim, on the edge row
 constexpr int32_t kZeroRow = 3;       // row 4 (from the top): no offset
 constexpr int32_t kOnOffRow = 7;      // row 8
 
@@ -146,11 +150,12 @@ void ModulePage::setValue(int32_t param, int32_t v) {
 }
 
 void ModulePage::lightButtons() const {
-	// SYNTH / KIT / MIDI / CV pick the column: lit while browsing the parameters
-	indicator_leds::setLedState(IndicatorLED::SYNTH, true);
-	indicator_leds::setLedState(IndicatorLED::KIT, true);
-	indicator_leds::setLedState(IndicatorLED::MIDI, true);
-	indicator_leds::setLedState(IndicatorLED::CV, true);
+	// SYNTH / KIT / MIDI / CV pick the column: the selected one is lit
+	const int32_t col = selected_ % kColumns;
+	indicator_leds::setLedState(IndicatorLED::SYNTH, col == 0);
+	indicator_leds::setLedState(IndicatorLED::KIT, col == 1);
+	indicator_leds::setLedState(IndicatorLED::MIDI, col == 2);
+	indicator_leds::setLedState(IndicatorLED::CV, col == 3);
 }
 
 void ModulePage::endSession() {
@@ -184,8 +189,8 @@ ActionResult ModulePage::timerCallback() {
 
 void ModulePage::beginSession(MenuItem* navigatedBackwardFrom) {
 	RackScreen::beginSession(navigatedBackwardFrom);
-	lightButtons();
 	arpHeldStep = -1;
+	arpView = 0;
 	if (type_ == Type::ARP) {
 		uiNeedsRendering(&soundEditor, 0xFFFFFFFF, 0); // the grid shows the ARP's steps
 		uiTimerManager.setTimer(TimerName::UI_SPECIFIC, kPlayheadRefreshMs);
@@ -195,6 +200,7 @@ void ModulePage::beginSession(MenuItem* navigatedBackwardFrom) {
 	if (cellParam(selected_) < 0) {
 		selected_ = 0;
 	}
+	lightButtons();
 	if (!display->haveOLED()) {
 		drawName();
 	}
@@ -259,6 +265,9 @@ void ModulePage::selectEncoderAction(int32_t offset) {
 	if (type_ == Type::ARP) {
 		uiNeedsRendering(&soundEditor, 0xFFFFFFFF, 0); // LEN changes the steps shown on the grid
 	}
+	else if (type_ == Type::EUCL) {
+		uiNeedsRendering(getRootUI(), 0xFFFFFFFF, 0); // the clip's grid shows EUCL's notes
+	}
 }
 
 MenuItem* ModulePage::selectButtonPress() {
@@ -299,6 +308,7 @@ ActionResult ModulePage::buttonAction(deluge::hid::Button b, bool on, bool inCar
 				showSync_ = false;
 			}
 			selected_ = target;
+			lightButtons();
 			refresh();
 		}
 		return ActionResult::DEALT_WITH;
@@ -329,7 +339,7 @@ bool ModulePage::arpPadAction(int32_t x, int32_t y, bool on) {
 		snprintf(text, sizeof(text), "STEP %d %s", static_cast<int>(x + 1), steps.isOn(x) ? "ON" : "OFF");
 	}
 	else {
-		steps.setOffset(x, kZeroRow - row);
+		steps.setOffset(x, arpView + kZeroRow - row);
 		arpHeldStep = x;
 		snprintf(text, sizeof(text), "STEP %d %+d", static_cast<int>(x + 1), static_cast<int>(steps.offset[x]));
 	}
@@ -340,12 +350,28 @@ bool ModulePage::arpPadAction(int32_t x, int32_t y, bool on) {
 
 bool ModulePage::stepEncoderAction(int32_t offset) {
 	Instrument* t = track();
-	if (type_ != Type::ARP || arpHeldStep < 0 || t == nullptr) {
+	if (type_ != Type::ARP || t == nullptr) {
 		return false;
+	}
+	char text[16];
+	if (arpHeldStep < 0) {
+		// no step held: scroll the rows shown
+		arpView = std::clamp<int32_t>(arpView + (offset > 0 ? 1 : -1), -kArpViewMax, kArpViewMax);
+		snprintf(text, sizeof(text), "ROW 4 = %+d", static_cast<int>(arpView));
+		display->displayPopup(text);
+		uiNeedsRendering(&soundEditor, 0xFFFFFFFF, 0);
+		return true;
 	}
 	ArpSteps& steps = t->noteFxArpSteps;
 	steps.setOffset(arpHeldStep, steps.offset[arpHeldStep] + (offset > 0 ? 1 : -1));
-	char text[16];
+	// the rows shown follow the note
+	const int32_t note = steps.offset[arpHeldStep];
+	if (note > arpView + kZeroRow) {
+		arpView = note - kZeroRow;
+	}
+	else if (note < arpView + kZeroRow - (kOnOffRow - 1)) {
+		arpView = note - kZeroRow + (kOnOffRow - 1);
+	}
 	snprintf(text, sizeof(text), "STEP %d %+d", static_cast<int>(arpHeldStep + 1),
 	         static_cast<int>(steps.offset[arpHeldStep]));
 	display->displayPopup(text);
@@ -377,15 +403,18 @@ bool ModulePage::renderPads(uint32_t whichRows, RGB image[][kDisplayWidth + kSid
 		for (int32_t x = 0; x < kDisplayWidth + kSideBarWidth; x++) {
 			RGB colour = colours::black;
 			if (steps != nullptr && x < len && x < kArpSteps) {
-				const int32_t offset = steps->offset[x];
-				const int32_t noteRow = std::clamp<int32_t>(kZeroRow - offset, 0, kOnOffRow - 1);
+				const int32_t noteRow = kZeroRow - (steps->offset[x] - arpView);
+				const int32_t zeroRow = kZeroRow + arpView; // where offset 0 is (if shown)
 				if (row == kOnOffRow) {
 					colour = x == playing ? kStepPlaying : (steps->isOn(x) ? kStepOn : kStepOff);
 				}
 				else if (row == noteRow) {
 					colour = steps->isOn(x) ? kStepNote : kStepNoteOff;
 				}
-				else if (row == kZeroRow) {
+				else if ((noteRow < 0 && row == 0) || (noteRow >= kOnOffRow && row == kOnOffRow - 1)) {
+					colour = kStepOutOfView; // the note is above / below: shown dim on the edge
+				}
+				else if (row == zeroRow) {
 					colour = kStepRow4Dim;
 				}
 			}
