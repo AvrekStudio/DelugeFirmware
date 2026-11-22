@@ -101,6 +101,9 @@ void SoundInstrument::renderOutput(ModelStack* modelStack, std::span<StereoSampl
 	    modelStack->addTimelineCounter(activeClip)
 	        ->addOtherTwoThingsButNoNoteRow(this, getParamManager(modelStack->song));
 
+	// NOTE FX rack: its modules make notes over time (ARP, EUCL ...), even when no voice is sounding
+	noteFxRunner.render(*this, modelStackWithThreeMainThings, static_cast<int32_t>(output.size()));
+
 	if (skippingRendering) {
 		compressor.reset();
 		compressor.gainReduction = 0;
@@ -377,11 +380,23 @@ void SoundInstrument::sendNote(ModelStackWithThreeMainThings* modelStack, bool i
 		return;
 	}
 
+	// Synth tracks arpeggiate with the NOTE FX rack's ARP: the built-in arpeggiator stays off
+	if (ArpeggiatorSettings* arpSettings = getArpSettings()) {
+		arpSettings->mode = ArpMode::OFF;
+		arpSettings->preset = ArpPreset::OFF;
+	}
+
 	if (isOn) {
+		if (noteFxRunner.noteOn(*this, modelStack, noteCode, velocity)) {
+			return; // the NOTE FX rack plays it
+		}
 		noteOn(modelStack, &arpeggiator, noteCode, mpeValues, sampleSyncLength, ticksLate, samplesLate, velocity,
 		       fromMIDIChannel);
 	}
 	else {
+		if (noteFxRunner.noteOff(*this, modelStack, noteCode)) {
+			return;
+		}
 		noteOff(modelStack, &arpeggiator, noteCode);
 	}
 }

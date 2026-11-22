@@ -10,6 +10,7 @@
 #include "gui/menu_item/menu_item.h"
 #include "gui/menu_item/mpe/zone_num_member_channels.h"
 #include "gui/menu_item/multi_range.h"
+#include "gui/menu_item/note_fx/module_page.h"
 #include "gui/ui/audio_recorder.h"
 #include "gui/ui/browser/sample_browser.h"
 #include "gui/ui/keyboard/keyboard_screen.h"
@@ -1735,6 +1736,11 @@ ActionResult SoundEditor::padAction(int32_t x, int32_t y, int32_t on) {
 	}
 
 	RootUI* rootUI = getRootUI();
+
+	// A NOTE FX module page: holding a grid note selects it for p-locking
+	if (menu_item::note_fx::modulePagePadAction(x, y, on)) {
+		return ActionResult::DEALT_WITH;
+	}
 
 	ActionResult result = potentialShortcutPadAction(x, y, on);
 	if (result != ActionResult::NOT_DEALT_WITH) {

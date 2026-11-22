@@ -18,6 +18,7 @@
 #include "gui/menu_item/note_fx/rack_menu.h"
 #include "definitions_cxx.hpp"
 #include "gui/l10n/l10n.h"
+#include "gui/menu_item/note_fx/module_page.h"
 #include "gui/menu_item/vertical_title.h"
 #include "gui/ui/sound_editor.h"
 #include "gui/ui/ui.h"
@@ -61,6 +62,12 @@ MenuItem* editPageFor(Type type) {
 	switch (type) {
 	case Type::DIR:
 		return &noteFxDirEdit;
+	case Type::ARP:
+		return &noteFxArpPage;
+	case Type::EUCL:
+		return &noteFxEuclPage;
+	case Type::MONO:
+		return &noteFxMonoPage;
 	default:
 		return nullptr;
 	}

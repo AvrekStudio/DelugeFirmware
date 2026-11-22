@@ -138,6 +138,7 @@ void InstrumentClip::copyBasicsFrom(Clip const* otherClip) {
 
 	affectEntire = otherInstrumentClip->affectEntire;
 	noteFxRack = otherInstrumentClip->noteFxRack;
+	noteFxLocks = otherInstrumentClip->noteFxLocks;
 
 	memcpy(backedUpInstrumentSlot, otherInstrumentClip->backedUpInstrumentSlot, sizeof(backedUpInstrumentSlot));
 	memcpy(backedUpInstrumentSubSlot, otherInstrumentClip->backedUpInstrumentSubSlot,
@@ -2357,6 +2358,11 @@ void InstrumentClip::writeDataToFile(Serializer& writer, Song* song) {
 		noteFxRack.toBytes(rackBytes);
 		writer.writeAttributeHexBytes("noteFxRack", rackBytes, deluge::note_fx::Rack::kNumSaveBytes);
 	}
+	if (noteFxLocks.count() > 0) {
+		static uint8_t lockBytes[deluge::note_fx::NoteLocks::kCapacity * deluge::note_fx::NoteLocks::kBytesPerLock];
+		int32_t len = noteFxLocks.toBytes(lockBytes);
+		writer.writeAttributeHexBytes("noteFxLocks", lockBytes, len);
+	}
 
 	Instrument* instrument = (Instrument*)output;
 
@@ -2642,6 +2648,12 @@ someError:
 
 		else if (!strcmp(tagName, "affectEntire")) {
 			affectEntire = reader.readTagOrAttributeValueInt();
+		}
+
+		else if (!strcmp(tagName, "noteFxLocks")) {
+			static uint8_t lockBytes[deluge::note_fx::NoteLocks::kCapacity * deluge::note_fx::NoteLocks::kBytesPerLock];
+			int32_t len = reader.readTagOrAttributeValueHexBytes(lockBytes, sizeof(lockBytes));
+			noteFxLocks.fromBytes(lockBytes, len);
 		}
 
 		else if (!strcmp(tagName, "noteFxRack")) {

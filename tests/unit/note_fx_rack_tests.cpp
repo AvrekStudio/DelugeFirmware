@@ -11,8 +11,9 @@ TEST(NoteFxRackTests, startsEmptyAndOffersEveryModule) {
 		CHECK(s.empty());
 	}
 	Type list[8];
-	CHECK_EQUAL(1, r.available(list, 8));
+	CHECK_EQUAL(4, r.available(list, 8));
 	CHECK(list[0] == Type::DIR);
+	CHECK(list[1] == Type::ARP);
 }
 
 TEST(NoteFxRackTests, addOnceOnlyAndIntoEmptySlots) {
@@ -25,7 +26,8 @@ TEST(NoteFxRackTests, addOnceOnlyAndIntoEmptySlots) {
 	CHECK_FALSE(r.add(8, Type::DIR)); // out of range
 	CHECK_FALSE(r.add(4, Type::NONE));
 	Type list[8];
-	CHECK_EQUAL(0, r.available(list, 8)); // DIR is used: nothing left to offer
+	CHECK_EQUAL(3, r.available(list, 8)); // DIR is used: no longer offered
+	CHECK(list[0] == Type::ARP);
 }
 
 TEST(NoteFxRackTests, moveSwapsAcrossRowsAndStopsAtEnds) {

@@ -3539,6 +3539,7 @@ traverseClips:
 	// Copy default velocity
 	newOutput->defaultVelocity = oldOutput->defaultVelocity;
 	newOutput->noteDefaults = oldOutput->noteDefaults;
+	newOutput->noteFxValues = oldOutput->noteFxValues;
 
 	newOutput->colour = oldOutput->colour;
 	oldOutput->colour = 0;

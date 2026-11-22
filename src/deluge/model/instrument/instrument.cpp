@@ -84,6 +84,9 @@ bool Instrument::writeDataToFile(Serializer& writer, Clip* clipForSavingOutputOn
 		writer.writeAttribute("defaultNoteLen", noteDefaults.lenEighths);
 		writer.writeAttribute("defaultNote", noteDefaults.note);
 		writer.writeAttribute("defaultNoteScaleLock", noteDefaults.scaleLock);
+		uint8_t fxBytes[deluge::note_fx::Values::kNumSaveBytes];
+		noteFxValues.toBytes(fxBytes);
+		writer.writeAttributeHexBytes("noteFxValues", fxBytes, deluge::note_fx::Values::kNumSaveBytes);
 	}
 
 	return Output::writeDataToFile(writer, clipForSavingOutputOnly, song);
@@ -132,6 +135,12 @@ bool Instrument::readTagFromFile(Deserializer& reader, char const* tagName) {
 		if (v >= 0 && v <= 127) {
 			noteDefaults.note = static_cast<uint8_t>(v);
 		}
+	}
+
+	else if (!strcmp(tagName, "noteFxValues")) {
+		uint8_t fxBytes[deluge::note_fx::Values::kNumSaveBytes]{};
+		int32_t len = reader.readTagOrAttributeValueHexBytes(fxBytes, deluge::note_fx::Values::kNumSaveBytes);
+		noteFxValues.fromBytes(fxBytes, len);
 	}
 
 	else if (!strcmp(tagName, "defaultNoteScaleLock")) {

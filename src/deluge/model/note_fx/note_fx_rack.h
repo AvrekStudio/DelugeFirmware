@@ -25,7 +25,10 @@ namespace deluge::note_fx {
 /// The modules that can go in a NOTE FX RACK slot. Append new ones at the end (the value is saved).
 enum class Type : uint8_t {
 	NONE = 0,
-	DIR = 1, ///< Play direction of the clip
+	DIR = 1,  ///< Play direction of the clip
+	ARP = 2,  ///< Arpeggiator
+	EUCL = 3, ///< Euclidean rhythm generator
+	MONO = 4, ///< Polyphonic to monophonic
 	NUM_TYPES,
 };
 
@@ -37,6 +40,12 @@ constexpr const char* shortName(Type t) {
 	switch (t) {
 	case Type::DIR:
 		return "DIR";
+	case Type::ARP:
+		return "ARP";
+	case Type::EUCL:
+		return "EUCL";
+	case Type::MONO:
+		return "MONO";
 	default:
 		return "";
 	}
@@ -47,6 +56,12 @@ constexpr const char* longName(Type t) {
 	switch (t) {
 	case Type::DIR:
 		return "PLAY DIR";
+	case Type::ARP:
+		return "ARPEGGIATOR";
+	case Type::EUCL:
+		return "EUCLID";
+	case Type::MONO:
+		return "MONO";
 	default:
 		return "";
 	}

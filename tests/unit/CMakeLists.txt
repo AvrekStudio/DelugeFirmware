@@ -74,6 +74,7 @@ file(GLOB_RECURSE deluge_SOURCES
         ../../src/deluge/io/midi/midi_queue.cpp
         # For FFT magnitude tests
         ../../src/deluge/util/fast_pythag.cpp
+        ../../src/deluge/model/note_fx/note_fx_engine.cpp
 )
 
 add_executable(UnitTests
@@ -102,6 +103,7 @@ add_executable(UnitTests
         tick_interpolation_tests.cpp
         note_fx_rack_tests.cpp
         track_note_defaults_tests.cpp
+        note_fx_engine_tests.cpp
 )
 add_test(NAME UnitTests
         COMMAND UnitTests)

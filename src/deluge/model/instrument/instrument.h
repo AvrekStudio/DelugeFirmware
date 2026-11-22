@@ -21,6 +21,7 @@
 #include "io/midi/learned_midi.h"
 #include "model/clip/clip_instance_vector.h"
 #include "model/instrument/track_note_defaults.h"
+#include "model/note_fx/note_fx_params.h"
 #include "model/output.h"
 #include "storage/flash_storage.h"
 
@@ -90,6 +91,8 @@ public:
 	uint8_t defaultVelocity = FlashStorage::defaultVelocity;
 	/// MASTER menu, second row: LEN / NOTE / SCL
 	deluge::track_defaults::NoteDefaults noteDefaults;
+	/// NOTE FX modules' values for this track (ARP, EUCL, MONO ...); grid notes can p-lock them (clip's noteFxLocks)
+	deluge::note_fx::Values noteFxValues;
 	LearnedMIDI midiInput;
 
 protected:

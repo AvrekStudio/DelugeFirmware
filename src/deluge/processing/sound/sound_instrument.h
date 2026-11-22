@@ -19,6 +19,7 @@
 
 #include "definitions_cxx.hpp"
 #include "model/instrument/melodic_instrument.h"
+#include "model/note_fx/note_fx_runner.h"
 #include "modulation/arpeggiator.h"
 #include "processing/sound/sound.h"
 
@@ -29,6 +30,9 @@ class ModelStackWithThreeMainThings;
 
 class SoundInstrument final : public Sound, public MelodicInstrument {
 public:
+	/// The NOTE FX rack running on this track's notes
+	deluge::note_fx::Runner noteFxRunner;
+
 	SoundInstrument();
 	bool writeDataToFile(Serializer& writer, Clip* clipForSavingOutputOnly, Song* song) override;
 	Error readFromFile(Deserializer& reader, Song* song, Clip* clip, int32_t readAutomationUpToPos) override;
