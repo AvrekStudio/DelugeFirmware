@@ -44,6 +44,7 @@ struct Context {
 	double barTicks = 192;           ///< ticks in a bar
 	bool playing = false;            ///< transport running
 	int32_t trackNote = 60;          ///< the track's default NOTE (MASTER menu)
+	int32_t trackLenEighths = 8;     ///< the track's LEN (MASTER menu): eighths of a step, 0 = INF
 	const int16_t* params = nullptr; ///< this module's effective parameter values
 };
 
@@ -137,8 +138,9 @@ private:
 	PendingOffs offs_;
 	std::array<int16_t, 64> pattern_{};
 	int32_t patternLength_ = 0;
-	int32_t position_ = 0; ///< step within pattern x octaves
-	int32_t cycles_ = 0;   ///< full cycles played (REPEAT)
+	int32_t builtStyle_ = -1; ///< STYLE the pattern was built with (rebuilt when it changes, e.g. turned while playing)
+	int32_t position_ = 0;    ///< step within pattern x octaves
+	int32_t cycles_ = 0;      ///< full cycles played (REPEAT)
 	bool running_ = false;
 	double nextStep_ = 0;
 	double lastRetrigTime_ = 0;

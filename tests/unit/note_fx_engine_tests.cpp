@@ -243,3 +243,58 @@ TEST(NoteFxEngineTests, chainRunsModulesInOrderAndCleansUp) {
 	chain.advance(c, r);
 	CHECK_EQUAL(0, r.sounding());
 }
+
+TEST(NoteFxEngineTests, arpStyleTurnedWhilePlayingTakesEffect) {
+	arpDefaults(); // UP
+	ArpModule arp;
+	Recorder r;
+	Context c;
+	c.barTicks = 192; // 12 ticks per step
+	c.params = arpParams;
+	arp.noteOn(60, 100, c, r);
+	arp.noteOn(64, 100, c, r);
+	arp.noteOn(67, 100, c, r);
+	for (int t = 1; t <= 24; t++) { // steps at 0, 12, 24: 60 64 67
+		c.now = t;
+		arp.advance(c, r);
+	}
+	arpParams[ARP_STYLE] = STYLE_DOWN; // turned while the keys are held
+	for (int t = 25; t <= 60; t++) {
+		c.now = t;
+		arp.advance(c, r);
+	}
+	STRCMP_EQUAL("60 64 67 67 64 60 ", r.ons().c_str()); // UP cycle done, then DOWN from its start
+}
+
+TEST(NoteFxEngineTests, euclidGateFollowsTheTrackLen) {
+	Values v;
+	int16_t p[kMaxParams];
+	for (int i = 0; i < kMaxParams; i++) {
+		p[i] = v.get(Type::EUCL, i);
+	}
+	CHECK_EQUAL(kEuclGateTrack, p[EUCL_GATE]); // GATE follows the track's LEN by default
+	p[EUCL_STEPS] = 4;
+	p[EUCL_PULSES] = 1; // x...
+	auto offTickOfFirstNote = [&](int32_t lenEighths) {
+		EuclidModule e;
+		Recorder r;
+		Context c;
+		c.barTicks = 192; // 12 ticks per step
+		c.params = p;
+		c.playing = true;
+		c.trackLenEighths = lenEighths;
+		for (int t = 0; t < 47; t++) {
+			c.now = t;
+			e.advance(c, r);
+			for (auto& ev : r.events) {
+				if (ev[0] == '-') {
+					return t;
+				}
+			}
+		}
+		return -1;
+	};
+	CHECK_EQUAL(6, offTickOfFirstNote(4));   // LEN 0.5: half a step
+	CHECK_EQUAL(24, offTickOfFirstNote(16)); // LEN 2: two steps
+	CHECK_EQUAL(-1, offTickOfFirstNote(0));  // LEN INF: lasts up to the next pulse (4 steps away)
+}

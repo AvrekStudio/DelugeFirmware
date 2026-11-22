@@ -302,6 +302,7 @@ double ArpModule::stepLength(const Context& c) const {
 
 void ArpModule::rebuild(const Context& c) {
 	patternLength_ = buildArpPattern(c.params[ARP_STYLE], held_, pattern_.data(), pattern_.size());
+	builtStyle_ = c.params[ARP_STYLE];
 }
 
 void ArpModule::updateChord(const Context& c, NoteSink& out) {
@@ -424,6 +425,9 @@ void ArpModule::advance(const Context& c, NoteSink& out) {
 	}
 	lastRetrigTime_ = c.now;
 
+	if (c.params[ARP_STYLE] != builtStyle_) {
+		rebuild(c); // STYLE changed while playing (or a p-locked note brought its own)
+	}
 	const double step = stepLength(c);
 	if (nextStep_ > c.now + step) {
 		nextStep_ = c.now; // time went back (playback restarted / looped): carry on from now
@@ -498,7 +502,25 @@ void EuclidModule::advance(const Context& c, NoteSink& out) {
 		if (!euclidHit(s, steps, pulses, c.params[EUCL_ROTATE])) {
 			continue;
 		}
-		const double length = std::max(1.0, step * c.params[EUCL_GATE] / 100.0);
+		double length;
+		if (c.params[EUCL_GATE] == kEuclGateTrack) {
+			// the track's LEN (MASTER menu), in eighths of a step; INF = up to the next pulse
+			if (c.trackLenEighths == 0) {
+				int32_t gap = 1;
+				while (gap < steps
+				       && !euclidHit(static_cast<int32_t>((k + gap) % steps), steps, pulses, c.params[EUCL_ROTATE])) {
+					gap++;
+				}
+				length = step * gap - 0.5;
+			}
+			else {
+				length = step * c.trackLenEighths / 8.0;
+			}
+		}
+		else {
+			length = step * c.params[EUCL_GATE] / 100.0;
+		}
+		length = std::max(1.0, length);
 		const double at = static_cast<double>(k) * step;
 		if (fixed) {
 			const int32_t note = noteParam == kEuclNoteTrack ? c.trackNote : noteParam;

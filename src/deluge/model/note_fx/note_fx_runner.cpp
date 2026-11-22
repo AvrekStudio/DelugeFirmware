@@ -68,6 +68,7 @@ void Runner::updateParams(InstrumentClip* clip, SoundInstrument& track) {
 	context_.barTicks = currentSong->getBarLength();
 	context_.playing = playbackHandler.isEitherClockActive();
 	context_.trackNote = track.noteDefaults.note;
+	context_.trackLenEighths = track.noteDefaults.lenEighths;
 	context_.now = clock_;
 }
 

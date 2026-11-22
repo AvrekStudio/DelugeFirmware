@@ -101,6 +101,8 @@ constexpr const char* kMonoModeShort[5] = {"FRST", "LAST", "RAND", "LOW", "HIGH"
 // EUCL NOTE: IN (the notes played), TRK (the track's default NOTE, MASTER menu), then a fixed note 0..127
 constexpr int32_t kEuclNoteIn = -2;
 constexpr int32_t kEuclNoteTrack = -1;
+// EUCL GATE: TRK = the track's LEN (MASTER menu), then 0..200% of a step
+constexpr int32_t kEuclGateTrack = -1;
 
 struct ParamSpec {
 	const char* label; ///< 4 letters max
@@ -128,7 +130,7 @@ inline const ParamSpec* paramSpecs(Type t, int32_t* count) {
 	    {"STEP", 1, 32, 16},
 	    {"PULS", 1, 32, 4},
 	    {"ROT", 0, 31, 0},
-	    {"GATE", 0, 200, 50},
+	    {"GATE", kEuclGateTrack, 200, kEuclGateTrack},
 	};
 	static constexpr ParamSpec kMono[] = {
 	    {"MODE", 0, 4, MONO_LAST},
@@ -272,7 +274,12 @@ inline void formatParam(Type t, int32_t p, int32_t value, char* buf, size_t size
 			snprintf(buf, size, "1/%d", static_cast<int>(kRateDivisions[value]));
 			return;
 		case EUCL_GATE:
-			snprintf(buf, size, "%d%%", static_cast<int>(value));
+			if (value == kEuclGateTrack) {
+				snprintf(buf, size, "TRK");
+			}
+			else {
+				snprintf(buf, size, "%d%%", static_cast<int>(value));
+			}
 			return;
 		default:
 			snprintf(buf, size, "%d", static_cast<int>(value));
