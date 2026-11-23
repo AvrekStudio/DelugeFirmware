@@ -318,19 +318,20 @@ void drawChordName(deluge::hid::display::oled_canvas::Canvas& image, int32_t roo
 }
 
 void drawEmptyCell(deluge::hid::display::oled_canvas::Canvas& image, int32_t index, int32_t count) {
-	// a dotted frame where a setting could go
+	// a discreet dotted frame where a setting could go (as the horizontal menus' empty places)
 	const int32_t w = (OLED_MAIN_WIDTH_PIXELS - kColX) / count;
-	const int32_t x0 = kColX + index * w + 1;
-	const int32_t x1 = kColX + index * w + w - 3;
-	const int32_t y0 = kColTop + 1;
-	const int32_t y1 = OLED_MAIN_HEIGHT_PIXELS - 2;
-	for (int32_t x = x0; x <= x1; x += 2) {
-		image.drawPixel(x, y0);
-		image.drawPixel(x, y1);
+	const int32_t startX = kColX + index * w + (w - 17) / 2;
+	const int32_t endX = startX + 17;
+	const int32_t startY = kColTop + 3;
+	const int32_t endY = OLED_MAIN_HEIGHT_PIXELS - 4;
+	constexpr int32_t kDotInterval = 5;
+	for (int32_t x = startX + 1; x < endX; x += kDotInterval) {
+		image.drawPixel(x, startY);
+		image.drawPixel(x, endY);
 	}
-	for (int32_t y = y0; y <= y1; y += 2) {
-		image.drawPixel(x0, y);
-		image.drawPixel(x1, y);
+	for (int32_t y = startY + 3; y < endY; y += kDotInterval) {
+		image.drawPixel(startX - 2, y);
+		image.drawPixel(endX + 2, y);
 	}
 }
 
