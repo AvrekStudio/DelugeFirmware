@@ -158,7 +158,7 @@ SoundDrum* sampleForPreview;
 ParamManagerForTimeline* paramManagerForSamplePreview;
 
 PLACE_SDRAM_BSS char paramManagerForSamplePreviewMemory[sizeof(ParamManagerForTimeline)];
-PLACE_SDRAM_BSS char sampleForPreviewMemory[sizeof(SoundDrum)];
+alignas(16) PLACE_SDRAM_BSS char sampleForPreviewMemory[sizeof(SoundDrum)];
 
 SampleRecorder* firstRecorder = nullptr;
 

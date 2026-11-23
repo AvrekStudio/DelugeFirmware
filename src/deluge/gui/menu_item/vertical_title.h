@@ -26,6 +26,7 @@ namespace deluge::gui::menu_item {
 constexpr int32_t kVerticalTitleWidth = 11;
 
 /// The page name written bottom to top, black on a white strip down the left edge of the OLED (our pages' style).
-void drawVerticalTitle(std::string_view title);
+/// small: the small font, for longer names
+void drawVerticalTitle(std::string_view title, bool small = false);
 
 } // namespace deluge::gui::menu_item

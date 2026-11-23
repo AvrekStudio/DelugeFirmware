@@ -567,6 +567,8 @@ PLACE_SDRAM_DATA Language seven_segment{
         {STRING_FOR_DEFAULT_HORIZONTAL_MENU, "HORZ"},
         {STRING_FOR_ARP_SHORT_TITLE, "ARP"},
         {STRING_FOR_DEFAULT_NOTE_LENGTH, "LEN"},
+        {STRING_FOR_CHORD_MODE, "CHRD"},
+        {STRING_FOR_STRUM, "STRM"},
     },
     &built_in::english,
 };

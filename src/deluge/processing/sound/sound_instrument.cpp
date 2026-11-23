@@ -44,6 +44,11 @@ bool SoundInstrument::writeDataToFile(Serializer& writer, Clip* clipForSavingOut
 	// MelodicInstrument::writeDataToFile(writer, clipForSavingOutputOnly, song); // Nope, this gets called within the
 	// below call
 	writeMelodicInstrumentAttributesToFile(writer, clipForSavingOutputOnly, song);
+	writer.writeAttribute("chordMode", static_cast<int32_t>(chordSettings.mode));
+	writer.writeAttribute("chordRootType", chordSettings.rootType);
+	writer.writeAttribute("chordFreeType", chordSettings.freeType);
+	writer.writeAttribute("chordStrum", chordSettings.strumMs);
+	writer.writeAttribute("chordBass", chordSettings.bass);
 
 	ParamManager* paramManager;
 
@@ -87,6 +92,9 @@ Error SoundInstrument::readFromFile(Deserializer& reader, Song* song, Clip* clip
 
 void SoundInstrument::cutAllSound() {
 	Sound::killAllVoices();
+	for (StrumPending& p : strumPending_) {
+		p.key = -1;
+	}
 }
 
 void SoundInstrument::renderOutput(ModelStack* modelStack, std::span<StereoSample> output, int32_t* reverbBuffer,
@@ -100,6 +108,8 @@ void SoundInstrument::renderOutput(ModelStack* modelStack, std::span<StereoSampl
 	ModelStackWithThreeMainThings* modelStackWithThreeMainThings =
 	    modelStack->addTimelineCounter(activeClip)
 	        ->addOtherTwoThingsButNoNoteRow(this, getParamManager(modelStack->song));
+
+	renderStrum(modelStackWithThreeMainThings, static_cast<int32_t>(output.size())); // CHORD MODE STRUM
 
 	if (skippingRendering) {
 		compressor.reset();
@@ -377,12 +387,117 @@ void SoundInstrument::sendNote(ModelStackWithThreeMainThings* modelStack, bool i
 		return;
 	}
 
+	// CHORD MODE comes before the arpeggiator: each note of the chord goes into it as if held
 	if (isOn) {
+		if (chordSettings.mode != deluge::chordmode::Mode::OFF) {
+			chordNoteOn(modelStack, noteCode, mpeValues, fromMIDIChannel, velocity, sampleSyncLength, ticksLate,
+			            samplesLate);
+			return;
+		}
 		noteOn(modelStack, &arpeggiator, noteCode, mpeValues, sampleSyncLength, ticksLate, samplesLate, velocity,
 		       fromMIDIChannel);
 	}
 	else {
+		if (chordNoteOff(modelStack, noteCode)) {
+			return;
+		}
 		noteOff(modelStack, &arpeggiator, noteCode);
+	}
+}
+
+void SoundInstrument::chordNoteOn(ModelStackWithThreeMainThings* modelStack, int32_t key, int16_t const* mpeValues,
+                                  int32_t fromMIDIChannel, uint8_t velocity, uint32_t sampleSyncLength,
+                                  int32_t ticksLate, uint32_t samplesLate) {
+	using namespace deluge::chordmode;
+	chordNoteOff(modelStack, key); // the same key again: its previous chord ends first
+
+	const deluge::chordmode::Scale scale{currentSong->key.modeNotes.toBits(), currentSong->key.rootNote};
+	const Chord chord = build(chordSettings, key, scale);
+
+	ChordHeld* slot = nullptr;
+	for (ChordHeld& h : chordHeld_) {
+		if (h.key < 0) {
+			slot = &h;
+			break;
+		}
+	}
+	if (slot == nullptr) {
+		// every slot taken: play the key alone
+		noteOn(modelStack, &arpeggiator, key, mpeValues, sampleSyncLength, ticksLate, samplesLate, velocity,
+		       fromMIDIChannel);
+		return;
+	}
+	slot->key = static_cast<int16_t>(key);
+	slot->chord = chord;
+	chordLastKey = static_cast<int16_t>(key);
+	chordKeysHeld++;
+	chordPlayCounter++;
+
+	// STRUM only with the arp off (the arp plays the notes one by one already)
+	const bool strum = chordSettings.strumMs > 0 && ArpeggiatorBase::arpIsOff(getArpSettings());
+	const int32_t strumSamples = static_cast<int32_t>(chordSettings.strumMs) * kSampleRate / 1000;
+	for (int32_t i = 0; i < chord.count; i++) {
+		if (i == 0 || !strum) {
+			noteOn(modelStack, &arpeggiator, chord.notes[i], mpeValues, sampleSyncLength, ticksLate, samplesLate,
+			       velocity, fromMIDIChannel);
+			continue;
+		}
+		for (StrumPending& p : strumPending_) {
+			if (p.key < 0) {
+				p.key = static_cast<int16_t>(key);
+				p.note = chord.notes[i];
+				p.samplesLeft = strumSamples * i;
+				p.velocity = velocity;
+				for (int32_t d = 0; d < kNumExpressionDimensions; d++) {
+					p.mpe[d] = mpeValues != nullptr ? mpeValues[d] : 0;
+				}
+				break;
+			}
+		}
+	}
+}
+
+bool SoundInstrument::chordNoteOff(ModelStackWithThreeMainThings* modelStack, int32_t key) {
+	for (ChordHeld& h : chordHeld_) {
+		if (h.key != key) {
+			continue;
+		}
+		// strum notes not started yet never will
+		for (StrumPending& p : strumPending_) {
+			if (p.key == key) {
+				p.key = -1;
+			}
+		}
+		for (int32_t i = 0; i < h.chord.count; i++) {
+			noteOff(modelStack, &arpeggiator, h.chord.notes[i]);
+		}
+		h.key = -1;
+		if (chordKeysHeld > 0) {
+			chordKeysHeld--;
+		}
+		chordPlayCounter++;
+		return true;
+	}
+	return false;
+}
+
+void SoundInstrument::renderStrum(ModelStackWithThreeMainThings* modelStack, int32_t numSamples) {
+	for (StrumPending& p : strumPending_) {
+		if (p.key < 0) {
+			continue;
+		}
+		p.samplesLeft -= numSamples;
+		if (p.samplesLeft <= 0) {
+			const int16_t key = p.key;
+			p.key = -1;
+			// started late: it must still belong to a held chord
+			for (const ChordHeld& h : chordHeld_) {
+				if (h.key == key) {
+					noteOn(modelStack, &arpeggiator, p.note, p.mpe.data(), 0, 0, 0, p.velocity, MIDI_CHANNEL_NONE);
+					break;
+				}
+			}
+		}
 	}
 }
 
@@ -391,6 +506,32 @@ ArpeggiatorSettings* SoundInstrument::getArpSettings(InstrumentClip* clip) {
 }
 
 bool SoundInstrument::readTagFromFile(Deserializer& reader, char const* tagName) {
+	using namespace deluge::chordmode;
+	auto readClamped = [&](int32_t lo, int32_t hi) {
+		const int32_t v = std::clamp<int32_t>(reader.readTagOrAttributeValueInt(), lo, hi);
+		reader.exitTag();
+		return v;
+	};
+	if (!strcmp(tagName, "chordMode")) {
+		chordSettings.mode = static_cast<Mode>(readClamped(0, static_cast<int32_t>(Mode::NUM) - 1));
+		return true;
+	}
+	if (!strcmp(tagName, "chordRootType")) {
+		chordSettings.rootType = static_cast<uint8_t>(readClamped(0, kNumRootTypes - 1));
+		return true;
+	}
+	if (!strcmp(tagName, "chordFreeType")) {
+		chordSettings.freeType = static_cast<uint8_t>(readClamped(0, kNumFreeTypes - 1));
+		return true;
+	}
+	if (!strcmp(tagName, "chordStrum")) {
+		chordSettings.strumMs = static_cast<uint16_t>(readClamped(0, kStrumMaxMs));
+		return true;
+	}
+	if (!strcmp(tagName, "chordBass")) {
+		chordSettings.bass = static_cast<int8_t>(readClamped(kBassMin, kBassMax));
+		return true;
+	}
 	return MelodicInstrument::readTagFromFile(reader, tagName);
 }
 

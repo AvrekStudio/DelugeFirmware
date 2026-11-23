@@ -33,6 +33,7 @@
 #include "gui/menu_item/battery/level.h"
 #include "gui/menu_item/bend_range/main.h"
 #include "gui/menu_item/bend_range/per_finger.h"
+#include "gui/menu_item/chord_mode.h"
 #include "gui/menu_item/colour.h"
 #include "gui/menu_item/cpu/voice_usage.h"
 #include "gui/menu_item/cv/cv2Mapping.h"
@@ -1537,12 +1538,23 @@ PLACE_SDRAM_BSS Submenu soundEditorRootDrumActionsMenu{
     {&drumNameEditMenu, &sample0RecorderMenu, &sample1RecorderMenu},
 };
 
+// CHORD MODE (synth tracks): its chords go into the arpeggiator
+PLACE_SDRAM_BSS chord_mode::Mode chordModeModeMenu{STRING_FOR_MODE};
+PLACE_SDRAM_BSS chord_mode::Type chordModeTypeMenu{STRING_FOR_TYPE};
+PLACE_SDRAM_BSS chord_mode::Strum chordModeStrumMenu{STRING_FOR_STRUM};
+PLACE_SDRAM_BSS chord_mode::Bass chordModeBassMenu{STRING_FOR_BASS};
+PLACE_SDRAM_BSS chord_mode::Screen chordModeMenu{
+    STRING_FOR_CHORD_MODE,
+    STRING_FOR_CHORD_MODE,
+    {&chordModeModeMenu, &chordModeTypeMenu, &chordModeStrumMenu, &chordModeBassMenu}};
+
 PLACE_SDRAM_BSS Submenu soundEditorRootMenu{
     STRING_FOR_SOUND,
     {
         &soundEditorRootActionsMenu,
         &soundMasterMenu,
         &arpTwoRowMenu,
+        &chordModeMenu,
         &randomizerMenu,
         &audioCompMenu,
         &soundFiltersMenu,

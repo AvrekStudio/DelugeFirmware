@@ -17,6 +17,9 @@
 
 #pragma once
 
+#include "util/chord_mode_calc.h"
+#include <array>
+
 #include "definitions_cxx.hpp"
 #include "model/instrument/melodic_instrument.h"
 #include "modulation/arpeggiator.h"
@@ -85,4 +88,32 @@ public:
 	const char* getName() override { return name.get(); }
 
 	ArpeggiatorSettings defaultArpSettings;
+
+	/// CHORD MODE (SOUND menu): settings, and the last key played (for the screen)
+	deluge::chordmode::Settings chordSettings;
+	int16_t chordLastKey = 60;
+	uint8_t chordKeysHeld = 0;
+	uint32_t chordPlayCounter = 0; // bumped on every key played, so the screen knows to redraw
+
+private:
+	// CHORD MODE: the notes each held key started (so its note off ends them, whatever the settings are by then)
+	struct ChordHeld {
+		int16_t key = -1;
+		deluge::chordmode::Chord chord;
+	};
+	std::array<ChordHeld, 16> chordHeld_{};
+	// CHORD MODE STRUM (arp off): notes still to start
+	struct StrumPending {
+		int16_t key = -1;
+		int16_t note = 0;
+		int32_t samplesLeft = 0;
+		uint8_t velocity = 0;
+		std::array<int16_t, kNumExpressionDimensions> mpe{};
+	};
+	std::array<StrumPending, 32> strumPending_{};
+	void chordNoteOn(ModelStackWithThreeMainThings* modelStack, int32_t key, int16_t const* mpeValues,
+	                 int32_t fromMIDIChannel, uint8_t velocity, uint32_t sampleSyncLength, int32_t ticksLate,
+	                 uint32_t samplesLate);
+	bool chordNoteOff(ModelStackWithThreeMainThings* modelStack, int32_t key);
+	void renderStrum(ModelStackWithThreeMainThings* modelStack, int32_t numSamples);
 };
