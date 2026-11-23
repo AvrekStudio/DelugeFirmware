@@ -95,6 +95,9 @@ public:
 	int16_t chordLastKey = 60;
 	uint8_t chordKeysHeld = 0;
 	uint32_t chordPlayCounter = 0; // bumped on every key played, so the screen knows to redraw
+	/// Set while the keyboard's Chord / Chord Library layouts or its CHORD column play their own chords: CHORD MODE
+	/// leaves those notes alone (no chord on top of a chord)
+	bool chordModeSuppressed = false;
 
 private:
 	// CHORD MODE: the notes each held key started (so its note off ends them, whatever the settings are by then)

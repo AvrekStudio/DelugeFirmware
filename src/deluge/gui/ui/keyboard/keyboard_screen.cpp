@@ -206,6 +206,25 @@ void KeyboardScreen::evaluateActiveNotes() {
 
 void KeyboardScreen::updateActiveNotes() {
 	Instrument* activeInstrument = getCurrentInstrument();
+
+	// The Chord / Chord Library layouts and the CHORD column make their own chords: CHORD MODE keeps out of them
+	struct ChordModeSuppression {
+		SoundInstrument* sound = nullptr;
+		~ChordModeSuppression() {
+			if (sound != nullptr) {
+				sound->chordModeSuppressed = false;
+			}
+		}
+	} chordModeSuppression;
+	if (activeInstrument != nullptr && activeInstrument->type == OutputType::SYNTH) {
+		const auto& state = getCurrentInstrumentClip()->keyboardState;
+		const bool layoutMakesChords = state.currentLayout == KeyboardLayoutType::KeyboardLayoutTypeChord
+		                               || state.currentLayout == KeyboardLayoutType::KeyboardLayoutTypeChordLibrary
+		                               || state.columnControl.leftColFunc == layout::CHORD
+		                               || state.columnControl.rightColFunc == layout::CHORD;
+		chordModeSuppression.sound = static_cast<SoundInstrument*>(activeInstrument);
+		chordModeSuppression.sound->chordModeSuppressed = layoutMakesChords;
+	}
 	char modelStackMemory[MODEL_STACK_MAX_SIZE];
 	ModelStack* modelStack = setupModelStackWithSong(modelStackMemory, currentSong);
 	bool clipIsActiveOnInstrument = makeCurrentClipActiveOnInstrumentIfPossible(modelStack);

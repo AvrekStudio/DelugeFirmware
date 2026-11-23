@@ -431,7 +431,7 @@ void SoundInstrument::playKey(ModelStackWithThreeMainThings* modelStack, bool is
                               uint32_t sampleSyncLength, int32_t ticksLate, uint32_t samplesLate) {
 	// CHORD MODE comes before the arpeggiator: each note of the chord goes into it as if held
 	if (isOn) {
-		if (chordSettings.mode != deluge::chordmode::Mode::OFF) {
+		if (chordSettings.mode != deluge::chordmode::Mode::OFF && !chordModeSuppressed) {
 			chordNoteOn(modelStack, noteCode, mpeValues, fromMIDIChannel, velocity, sampleSyncLength, ticksLate,
 			            samplesLate);
 			return;
