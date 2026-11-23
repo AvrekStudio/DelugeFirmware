@@ -659,6 +659,7 @@ gotAnInstrument:
 
 		// If that Instrument wasn't already in use in the Song, copy default velocity over
 		initialInstrument->defaultVelocity = instrumentToReplace->defaultVelocity;
+		initialInstrument->noteDefaults = instrumentToReplace->noteDefaults;
 
 		// If we're here, we know the Clip is not playing in the arranger (and doesn't even have an instance in there)
 
@@ -990,6 +991,7 @@ giveUsedError:
 
 		// If that Instrument wasn't already in use in the Song, copy default velocity over
 		newInstrument->defaultVelocity = instrumentToReplace->defaultVelocity;
+		newInstrument->noteDefaults = instrumentToReplace->noteDefaults;
 
 		// If we're here, we know the Clip is not playing in the arranger (and doesn't even have an instance in there)
 

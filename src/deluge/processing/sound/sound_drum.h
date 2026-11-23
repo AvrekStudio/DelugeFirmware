@@ -29,6 +29,8 @@ class SoundDrum final : public Sound, public Drum {
 public:
 	String path;
 	bool nameIsDiscardable = false;
+	/// MASTER NOTE: the note the sample plays at (C3 = as recorded)
+	uint8_t defaultNote = kNoteForDrum;
 
 	SoundDrum() : Drum(DrumType::SOUND) {}
 
@@ -65,5 +67,10 @@ public:
 	ArpeggiatorBase* getArp() override { return &arpeggiator; }
 	ArpeggiatorSettings* getArpSettings(InstrumentClip* clip = nullptr) override { return &arpSettings; }
 	void resetTimeEnteredState();
+
+private:
+	uint8_t noteCodeOn = kNoteForDrum; // the note the last note on used
+
+public:
 	const char* getName() override { return drumName.c_str(); }
 };

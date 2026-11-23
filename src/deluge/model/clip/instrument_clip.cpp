@@ -893,6 +893,14 @@ doNewProbability:
 					}
 				}
 
+				// the track's RAND (MASTER menu): the chance that each of its notes plays
+				if (conditionPassed && output != nullptr && output->type != OutputType::AUDIO) {
+					const int32_t chance = static_cast<Instrument*>(output)->noteDefaults.chance;
+					if (chance < deluge::track_defaults::kChanceMax) {
+						conditionPassed = deluge::track_defaults::chancePasses(chance, getRandom255());
+					}
+				}
+
 				// probability, iterance and fill conditions have passed
 				if (conditionPassed) {
 					sendPendingNoteOn(modelStack, &pendingNoteOnList.pendingNoteOns[i]);

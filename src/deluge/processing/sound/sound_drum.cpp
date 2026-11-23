@@ -29,12 +29,17 @@
 #include "processing/engines/audio_engine.h"
 #include "storage/storage_manager.h"
 #include "util/misc.h"
+#include <algorithm>
 #include <new>
 
 bool SoundDrum::readTagFromFile(Deserializer& reader, char const* tagName) {
 	if (!strcmp(tagName, "path")) {
 		reader.readTagOrAttributeValueString(&path);
 		reader.exitTag("path");
+	}
+	else if (!strcmp(tagName, "defaultNote")) {
+		defaultNote = static_cast<uint8_t>(std::clamp<int32_t>(reader.readTagOrAttributeValueInt(), 0, 127));
+		reader.exitTag("defaultNote");
 	}
 	else if (readDrumTagFromFile(reader, tagName)) {
 		// Delegation is also considered a success.
@@ -61,12 +66,13 @@ void SoundDrum::noteOn(ModelStackWithThreeMainThings* modelStack, uint8_t veloci
 		kit->choke();
 	}
 
-	Sound::noteOn(modelStack, &arpeggiator, kNoteForDrum, mpeValues, sampleSyncLength, ticksLate, samplesLate, velocity,
+	noteCodeOn = defaultNote; // the note off must match, even if NOTE changes meanwhile
+	Sound::noteOn(modelStack, &arpeggiator, noteCodeOn, mpeValues, sampleSyncLength, ticksLate, samplesLate, velocity,
 	              fromMIDIChannel);
 }
 
 void SoundDrum::noteOff(ModelStackWithThreeMainThings* modelStack, int32_t velocity) {
-	Sound::noteOff(modelStack, &arpeggiator, kNoteForDrum);
+	Sound::noteOff(modelStack, &arpeggiator, noteCodeOn);
 }
 
 extern bool expressionValueChangesMustBeDoneSmoothly;
@@ -121,6 +127,7 @@ void SoundDrum::writeToFileAsInstrument(bool savingSong, ParamManager* paramMana
 	writer.writeOpeningTagBeginning("sound", true);
 	writer.writeFirmwareVersion();
 	writer.writeEarliestCompatibleFirmwareVersion("4.1.0-alpha");
+	writer.writeAttribute("defaultNote", defaultNote);
 	Sound::writeToFile(writer, savingSong, paramManager, &arpSettings, NULL);
 
 	if (savingSong) {}
@@ -131,6 +138,7 @@ void SoundDrum::writeToFileAsInstrument(bool savingSong, ParamManager* paramMana
 void SoundDrum::writeToFile(Serializer& writer, bool savingSong, ParamManager* paramManager) {
 	writer.writeOpeningTagBeginning("sound", true);
 	writeDrumTagsToFile(writer);
+	writer.writeAttribute("defaultNote", defaultNote);
 
 	Sound::writeToFile(writer, savingSong, paramManager, &arpSettings, path.get());
 

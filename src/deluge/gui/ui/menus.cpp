@@ -218,6 +218,7 @@
 #include "gui/menu_item/submenu/modulator.h"
 #include "gui/menu_item/swing/interval.h"
 #include "gui/menu_item/synth_mode.h"
+#include "gui/menu_item/track_defaults/track_defaults_menus.h"
 #include "gui/menu_item/trigger/in/ppqn.h"
 #include "gui/menu_item/trigger/out/ppqn.h"
 #include "gui/menu_item/two_row_menu.h"
@@ -1499,9 +1500,15 @@ PLACE_SDRAM_BSS patched_param::Pan panMenu{STRING_FOR_PAN, params::LOCAL_PAN};
 
 PLACE_SDRAM_BSS PatchCables patchCablesMenu{STRING_FOR_MOD_MATRIX};
 
-PLACE_SDRAM_BSS HorizontalMenu soundMasterMenu{
+PLACE_SDRAM_BSS gui::menu_item::track_defaults::Len trackNoteLengthMenu{STRING_FOR_DEFAULT_NOTE_LENGTH};
+PLACE_SDRAM_BSS gui::menu_item::track_defaults::Note trackNoteMenu{STRING_FOR_NOTE};
+PLACE_SDRAM_BSS gui::menu_item::track_defaults::Rand trackNoteChanceMenu{STRING_FOR_RANDOM};
+
+// Two rows of four: SYNT VOLU PAN TRAN / VIBR LEN NOTE RAND
+PLACE_SDRAM_BSS TwoRowMenu soundMasterMenu{
     STRING_FOR_MASTER,
-    {&synthModeMenu, &volumeMenu, &panMenu, &masterTransposeMenu, &vibratoMenu},
+    {&synthModeMenu, &volumeMenu, &panMenu, &masterTransposeMenu, &vibratoMenu, &trackNoteLengthMenu, &trackNoteMenu,
+     &trackNoteChanceMenu},
 };
 
 PLACE_SDRAM_BSS HorizontalMenuGroup sourceMenuGroup{

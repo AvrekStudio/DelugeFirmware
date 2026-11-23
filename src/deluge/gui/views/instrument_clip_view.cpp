@@ -2485,6 +2485,7 @@ void InstrumentClipView::editPadAction(bool state, uint8_t yDisplay, uint8_t xDi
 				Action* action = actionLogger.getNewAction(ActionType::NOTE_EDIT, ActionAddition::ALLOWED);
 
 				uint32_t desiredNoteLength = squareWidth;
+				bool sampleSetsLength = false; // a time-synced or cut / loop-mode sample overrides the track's LEN
 				if (sound) {
 
 					int32_t yNote;
@@ -2499,6 +2500,7 @@ void InstrumentClipView::editPadAction(bool state, uint8_t yDisplay, uint8_t xDi
 					// If a time-synced sample...
 					uint32_t sampleLength = sound->hasAnyTimeStretchSyncing(paramManager, true, yNote);
 					if (sampleLength) {
+						sampleSetsLength = true;
 						uint32_t sampleLengthInTicks =
 						    ((uint64_t)sampleLength << 32) / currentSong->timePerTimerTickBig;
 
@@ -2534,6 +2536,7 @@ void InstrumentClipView::editPadAction(bool state, uint8_t yDisplay, uint8_t xDi
 						bool anyLooping;
 						sampleLength = sound->hasCutOrLoopModeSamples(paramManager, yNote, &anyLooping);
 						if (sampleLength) {
+							sampleSetsLength = true;
 
 							// If sample loops, we want to cut out before we get to the loop-point
 							if (anyLooping) {
@@ -2549,6 +2552,12 @@ void InstrumentClipView::editPadAction(bool state, uint8_t yDisplay, uint8_t xDi
 					}
 
 					desiredNoteLength = std::max(desiredNoteLength, squareWidth);
+				}
+
+				// The track's LEN (MASTER menu): the length of a note placed by a tap, 0.25 to 64 squares
+				if (!sampleSetsLength) {
+					desiredNoteLength =
+					    deluge::track_defaults::lenTicks(instrument->noteDefaults.lenQuarters, squareWidth);
 				}
 
 				uint32_t maxNoteLengthHere = clip->getWrapEditLevel();

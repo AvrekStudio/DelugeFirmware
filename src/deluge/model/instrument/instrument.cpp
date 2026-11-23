@@ -81,6 +81,9 @@ bool Instrument::writeDataToFile(Serializer& writer, Clip* clipForSavingOutputOn
 			writer.writeAttribute("presetFolder", dirPath.get());
 		}
 		writer.writeAttribute("defaultVelocity", defaultVelocity);
+		writer.writeAttribute("noteLen", noteDefaults.lenQuarters);
+		writer.writeAttribute("defaultNote", noteDefaults.note);
+		writer.writeAttribute("noteChance", noteDefaults.chance);
 	}
 
 	return Output::writeDataToFile(writer, clipForSavingOutputOnly, song);
@@ -115,6 +118,21 @@ bool Instrument::readTagFromFile(Deserializer& reader, char const* tagName) {
 		if (defaultVelocity == 0 || defaultVelocity >= 128) {
 			defaultVelocity = FlashStorage::defaultVelocity;
 		}
+	}
+
+	else if (!strcmp(tagName, "noteLen")) {
+		int32_t v = reader.readTagOrAttributeValueInt();
+		noteDefaults.lenQuarters = static_cast<int16_t>(
+		    std::clamp<int32_t>(v, deluge::track_defaults::kLenQuartersMin, deluge::track_defaults::kLenQuartersMax));
+	}
+
+	else if (!strcmp(tagName, "defaultNote")) {
+		noteDefaults.note = static_cast<uint8_t>(std::clamp<int32_t>(reader.readTagOrAttributeValueInt(), 0, 127));
+	}
+
+	else if (!strcmp(tagName, "noteChance")) {
+		noteDefaults.chance = static_cast<uint8_t>(
+		    std::clamp<int32_t>(reader.readTagOrAttributeValueInt(), 0, deluge::track_defaults::kChanceMax));
 	}
 
 	else if (!strcmp(tagName, "presetFolder")) {

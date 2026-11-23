@@ -1015,6 +1015,7 @@ PLACE_SDRAM_DATA Language english{
         {STRING_FOR_CHORD_KEYBOARD_MODE_ROW, "Chord Row Mode"},
         {STRING_FOR_CHORD_KEYBOARD_MODE_COLUMN, "Chord Column Mode"},
         {STRING_FOR_ARP_SHORT_TITLE, "ARP"},
+        {STRING_FOR_DEFAULT_NOTE_LENGTH, "Note length"},
     },
 };
 } // namespace deluge::l10n::built_in
