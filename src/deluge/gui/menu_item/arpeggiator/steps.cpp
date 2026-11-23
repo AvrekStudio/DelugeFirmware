@@ -177,6 +177,23 @@ void ArpScreen::startOrStopPlayhead() {
 	}
 }
 
+void ArpScreen::selectEncoderAction(int32_t offset) {
+	TwoRowMenu::selectEncoderAction(offset);
+	clearPopup(); // the value is on the screen already
+}
+
+ActionResult ArpScreen::buttonAction(hid::Button b, bool on, bool inCardRoutine) {
+	const ActionResult result = TwoRowMenu::buttonAction(b, on, inCardRoutine);
+	clearPopup();
+	return result;
+}
+
+void ArpScreen::clearPopup() {
+	if (display->hasPopup()) {
+		display->cancelPopup();
+	}
+}
+
 ActionResult ArpScreen::timerCallback() {
 	if (!editingSteps()) {
 		timerRunning_ = false;
@@ -207,17 +224,13 @@ bool ArpScreen::padAction(int32_t x, int32_t y, bool on) {
 		return true; // beyond LEN
 	}
 	const int32_t row = kDisplayHeight - 1 - y; // the Deluge counts pad rows from the bottom
-	char text[20];
 	if (row == kOnOffRow) {
 		steps.toggle(x);
-		snprintf(text, sizeof(text), "STEP %d %s", static_cast<int>(x + 1), steps.isOn(x) ? "ON" : "OFF");
 	}
 	else {
 		steps.setOffset(x, view_ + kZeroRow - row);
 		heldStep_ = x;
-		snprintf(text, sizeof(text), "STEP %d %+d", static_cast<int>(x + 1), static_cast<int>(steps.offset[x]));
 	}
-	display->displayPopup(text);
 	soundEditor.markInstrumentAsEdited();
 	uiNeedsRendering(&soundEditor, 0xFFFFFFFF, 0xFFFFFFFF);
 	renderUIsForOled(); // the RHYT cell shows the steps
@@ -230,20 +243,17 @@ bool ArpScreen::sidebarPadAction(int32_t x, int32_t y, bool on) {
 	}
 	ArpSteps& steps = settings()->steps;
 	const int32_t row = kDisplayHeight - 1 - y;
-	char text[20];
 	if (row == kOnOffRow) {
 		// MUTE: LEN - 1, AUDITION: LEN + 1
 		steps.setLen(steps.len + (x == kAuditionCol ? 1 : -1));
-		snprintf(text, sizeof(text), "LEN %d", static_cast<int>(steps.len));
 	}
 	else if (row == 0 && x == kAuditionCol) {
 		steps.enabled = !steps.enabled;
-		snprintf(text, sizeof(text), "RHYTHM %s", steps.enabled ? "ON" : "OFF");
 	}
 	else {
 		return true; // unused
 	}
-	display->displayPopup(text);
+
 	soundEditor.markInstrumentAsEdited();
 	uiNeedsRendering(&soundEditor, 0xFFFFFFFF, 0xFFFFFFFF);
 	renderUIsForOled(); // LEN / RHYT cells
@@ -254,11 +264,9 @@ bool ArpScreen::stepEncoderAction(int32_t offset) {
 	if (!editingSteps() || offset == 0) {
 		return false;
 	}
-	char text[20];
 	if (heldStep_ < 0) {
 		// no step held: scroll the rows shown
 		view_ = std::clamp<int32_t>(view_ + (offset > 0 ? 1 : -1), -kViewMax, kViewMax);
-		snprintf(text, sizeof(text), "ROW 4 = %+d", static_cast<int>(view_));
 	}
 	else {
 		ArpSteps& steps = settings()->steps;
@@ -271,11 +279,8 @@ bool ArpScreen::stepEncoderAction(int32_t offset) {
 		else if (note < view_ + kZeroRow - (kOnOffRow - 1)) {
 			view_ = note - kZeroRow + (kOnOffRow - 1);
 		}
-		snprintf(text, sizeof(text), "STEP %d %+d", static_cast<int>(heldStep_ + 1),
-		         static_cast<int>(steps.offset[heldStep_]));
 		soundEditor.markInstrumentAsEdited();
 	}
-	display->displayPopup(text);
 	uiNeedsRendering(&soundEditor, 0xFFFFFFFF, 0xFFFFFFFF);
 	return true;
 }

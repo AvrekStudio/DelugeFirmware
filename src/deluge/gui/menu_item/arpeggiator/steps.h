@@ -71,6 +71,8 @@ public:
 	void beginSession(MenuItem* navigatedBackwardFrom) override;
 	void endSession() override;
 	ActionResult timerCallback() override;
+	void selectEncoderAction(int32_t offset) override;
+	ActionResult buttonAction(hid::Button b, bool on, bool inCardRoutine) override;
 
 	/// The grid is the step editor (RHYT selected, over a clip's grid)
 	[[nodiscard]] bool editingSteps() const;
@@ -91,6 +93,7 @@ private:
 	int32_t drawnStep_ = -1; // the step playing when the grid was last drawn
 	bool timerRunning_ = false;
 	void startOrStopPlayhead();
+	static void clearPopup();
 	bool sidebarPadAction(int32_t x, int32_t y, bool on);
 	void showSteps() const;
 };
