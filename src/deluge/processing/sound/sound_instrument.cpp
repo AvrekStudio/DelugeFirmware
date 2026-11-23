@@ -50,6 +50,7 @@ bool SoundInstrument::writeDataToFile(Serializer& writer, Clip* clipForSavingOut
 	writer.writeAttribute("chordFreeType", chordSettings.freeType);
 	writer.writeAttribute("chordStrum", chordSettings.strumMs);
 	writer.writeAttribute("chordBass", chordSettings.bass);
+	writer.writeAttribute("keyboardChordStrumMs", keyboardChordStrumMs);
 
 	ParamManager* paramManager;
 
@@ -436,10 +437,35 @@ void SoundInstrument::playKey(ModelStackWithThreeMainThings* modelStack, bool is
 			            samplesLate);
 			return;
 		}
+		// The keyboard's CHORD / CHORD LIB pages: their STRUM (arp off) starts each note after the first a bit later
+		if (chordModeSuppressed && keyboardStrumIndex > 0 && keyboardChordStrumMs > 0
+		    && ArpeggiatorBase::arpIsOff(getArpSettings())) {
+			for (StrumPending& p : strumPending_) {
+				if (p.key < 0) {
+					p.key = static_cast<int16_t>(noteCode);
+					p.note = static_cast<int16_t>(noteCode);
+					p.keyboardPage = true;
+					p.samplesLeft =
+					    keyboardStrumIndex * static_cast<int32_t>(keyboardChordStrumMs) * kSampleRate / 1000;
+					p.velocity = velocity;
+					for (int32_t d = 0; d < kNumExpressionDimensions; d++) {
+						p.mpe[d] = mpeValues != nullptr ? mpeValues[d] : 0;
+					}
+					return;
+				}
+			}
+		}
 		noteOn(modelStack, &arpeggiator, noteCode, mpeValues, sampleSyncLength, ticksLate, samplesLate, velocity,
 		       fromMIDIChannel);
 	}
 	else {
+		// a strummed note let go before it started: it never will
+		for (StrumPending& p : strumPending_) {
+			if (p.key == noteCode && p.keyboardPage) {
+				p.key = -1;
+				return;
+			}
+		}
 		if (chordNoteOff(modelStack, noteCode)) {
 			return;
 		}
@@ -488,6 +514,7 @@ void SoundInstrument::chordNoteOn(ModelStackWithThreeMainThings* modelStack, int
 		for (StrumPending& p : strumPending_) {
 			if (p.key < 0) {
 				p.key = static_cast<int16_t>(key);
+				p.keyboardPage = false;
 				p.note = chord.notes[i];
 				p.samplesLeft = strumSamples * i;
 				p.velocity = velocity;
@@ -519,7 +546,7 @@ bool SoundInstrument::chordNoteOff(ModelStackWithThreeMainThings* modelStack, in
 		}
 		// strum notes not started yet never will
 		for (StrumPending& p : strumPending_) {
-			if (p.key == key) {
+			if (p.key == key && !p.keyboardPage) {
 				p.key = -1;
 			}
 		}
@@ -555,6 +582,12 @@ void SoundInstrument::renderStrum(ModelStackWithThreeMainThings* modelStack, int
 		if (p.samplesLeft <= 0) {
 			const int16_t key = p.key;
 			p.key = -1;
+			if (p.keyboardPage) {
+				// a note of the keyboard's CHORD / CHORD LIB pages, still held
+				p.keyboardPage = false;
+				noteOn(modelStack, &arpeggiator, p.note, p.mpe.data(), 0, 0, 0, p.velocity, MIDI_CHANNEL_NONE);
+				continue;
+			}
 			// started late: it must still belong to a held chord
 			for (ChordHeld& h : chordHeld_) {
 				if (h.key != key) {
@@ -597,6 +630,10 @@ bool SoundInstrument::readTagFromFile(Deserializer& reader, char const* tagName)
 	}
 	if (!strcmp(tagName, "chordStrum")) {
 		chordSettings.strumMs = static_cast<uint16_t>(readClamped(0, kStrumMaxMs));
+		return true;
+	}
+	if (!strcmp(tagName, "keyboardChordStrumMs")) {
+		keyboardChordStrumMs = static_cast<uint16_t>(readClamped(0, kStrumMaxMs));
 		return true;
 	}
 	if (!strcmp(tagName, "chordBass")) {

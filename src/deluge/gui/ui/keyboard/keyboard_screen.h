@@ -82,9 +82,10 @@ private:
 
 	void unscrolledPadAudition(int32_t velocity, int32_t note, bool shiftButtonDown);
 
-	void renderOLED(deluge::hid::display::oled_canvas::Canvas& canvas) override {
-		InstrumentClipMinder::renderOLED(canvas);
-	}
+	void renderOLED(deluge::hid::display::oled_canvas::Canvas& canvas) override;
+
+	/// The keyboard's CHORD / CHORD LIB pages of a synth track: their own screen (keyboard + chord + STRUM)
+	[[nodiscard]] bool onChordPage() const;
 
 	void selectLayout(int8_t offset);
 	void enterScaleMode(int32_t selectedRootNote = kDefaultCalculateRootNote);

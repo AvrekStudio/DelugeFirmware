@@ -98,6 +98,10 @@ public:
 	/// Set while the keyboard's Chord / Chord Library layouts or its CHORD column play their own chords: CHORD MODE
 	/// leaves those notes alone (no chord on top of a chord)
 	bool chordModeSuppressed = false;
+	/// The keyboard's CHORD / CHORD LIB pages: STRUM (ms between the chord's notes, arp off), and the place of the note
+	/// being played in the chord being started (0 = first, -1 = not part of one)
+	uint16_t keyboardChordStrumMs = 0;
+	int8_t keyboardStrumIndex = -1;
 
 private:
 	// CHORD MODE: the notes each held key started (so its note off ends them, whatever the settings are by then)
@@ -118,6 +122,7 @@ private:
 		int16_t key = -1;
 		int16_t note = 0;
 		int32_t samplesLeft = 0;
+		bool keyboardPage = false; // a note of the keyboard's CHORD / CHORD LIB pages (else a CHORD MODE note)
 		uint8_t velocity = 0;
 		std::array<int16_t, kNumExpressionDimensions> mpe{};
 	};

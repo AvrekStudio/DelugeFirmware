@@ -52,7 +52,6 @@ constexpr int32_t kNameX = kKeysX + 14 * kKeyPitch + 2;
 
 // Settings: four columns under the keyboard
 constexpr int32_t kColX = kVerticalTitleWidth + 1;
-constexpr int32_t kColW = (OLED_MAIN_WIDTH_PIXELS - kColX) / 4;
 constexpr int32_t kColTop = kKeysBottom + 4;
 constexpr int32_t kLabelY = kColTop + 2;
 constexpr int32_t kValueY = kLabelY + 8;
@@ -272,42 +271,61 @@ void Screen::renderOLED() {
 		}
 
 		// the root in the low octave, or the high one if the bass goes below it
-		const int32_t rootPos = chord.root % 12 + (s->bass < 0 ? 12 : 0);
-		for (int32_t n = 0; n < chord.count; n++) {
-			int32_t p = rootPos + chord.notes[n] - chord.root;
-			while (p < 0) {
-				p += 12;
-			}
-			while (p > 23) {
-				p -= 12;
-			}
-			drawNoteMark(image, p, n == 0);
-		}
-
-		// the chord's name on the right: root, then quality
-		const int32_t nameW = OLED_MAIN_WIDTH_PIXELS - kNameX;
-		image.drawStringCentered(kPitchNames[chord.root % 12], kNameX, kKeysTop + 1, kTextSpacingX, kTextSizeYUpdated,
-		                         nameW);
-		image.drawStringCentered(qualityName(chord), kNameX, kKeysTop + 11, kTextSmallSpacingX, kTextSmallSizeY, nameW);
+		drawChordNotes(image, chord.notes.data(), chord.count, chord.root, s->bass < 0);
+		drawChordName(image, chord.root, qualityName(chord));
 	}
 
 	// MODE TYPE STRUM BASS: label above, value below; the selected one framed in white
 	const MenuItem* current = getCurrentItem();
 	for (int32_t i = 0; i < static_cast<int32_t>(items.size()) && i < 4; i++) {
 		auto* item = static_cast<Setting*>(items[i]);
-		const int32_t x = kColX + i * kColW;
 		item->readCurrentValue();
 		DEF_STACK_STRING_BUF(label, 12);
 		item->getColumnLabel(label);
-		image.drawStringCentered(label, x, kLabelY, kTextSmallSpacingX, kTextSmallSizeY, kColW);
 		char value[12];
 		item->format(item->getValue(), value, sizeof(value));
-		image.drawStringCentered(value, x, kValueY, kTextSpacingX, kTextSizeYUpdated, kColW);
-		if (item == current) {
-			image.invertAreaRounded(x, kColW - 1, kColTop, OLED_MAIN_HEIGHT_PIXELS - 1);
-		}
+		drawSettingCell(image, i, 4, label.c_str(), value, item == current);
 	}
 	OLED::markChanged();
+}
+
+// Shared with the keyboard's CHORD / CHORD LIB pages ------------------------------------------------------------
+
+void drawChordKeyboard(deluge::hid::display::oled_canvas::Canvas& image) {
+	drawKeyboard(image);
+}
+
+void drawChordNotes(deluge::hid::display::oled_canvas::Canvas& image, const int16_t* notes, int32_t count, int32_t root,
+                    bool rootInHighOctave) {
+	const int32_t rootPos = ((root % 12) + 12) % 12 + (rootInHighOctave ? 12 : 0);
+	for (int32_t n = 0; n < count; n++) {
+		int32_t p = rootPos + notes[n] - root;
+		while (p < 0) {
+			p += 12;
+		}
+		while (p > 23) {
+			p -= 12;
+		}
+		drawNoteMark(image, p, notes[n] == root);
+	}
+}
+
+void drawChordName(deluge::hid::display::oled_canvas::Canvas& image, int32_t root, const char* quality) {
+	const int32_t nameW = OLED_MAIN_WIDTH_PIXELS - kNameX;
+	image.drawStringCentered(kPitchNames[((root % 12) + 12) % 12], kNameX, kKeysTop + 1, kTextSpacingX,
+	                         kTextSizeYUpdated, nameW);
+	image.drawStringCentered(quality, kNameX, kKeysTop + 11, kTextSmallSpacingX, kTextSmallSizeY, nameW);
+}
+
+void drawSettingCell(deluge::hid::display::oled_canvas::Canvas& image, int32_t index, int32_t count, const char* label,
+                     const char* value, bool selected) {
+	const int32_t w = (OLED_MAIN_WIDTH_PIXELS - kColX) / count;
+	const int32_t x = kColX + index * w;
+	image.drawStringCentered(label, x, kLabelY, kTextSmallSpacingX, kTextSmallSizeY, w);
+	image.drawStringCentered(value, x, kValueY, kTextSpacingX, kTextSizeYUpdated, w);
+	if (selected) {
+		image.invertAreaRounded(x, w - 1, kColTop, OLED_MAIN_HEIGHT_PIXELS - 1);
+	}
 }
 
 } // namespace deluge::gui::menu_item::chord_mode

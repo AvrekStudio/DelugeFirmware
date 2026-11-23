@@ -81,3 +81,27 @@ TEST(ChordModeTests, notesOutsideMidiAreDropped) {
 	Chord c = chordOf(Mode::FREE, 4, 125); // MAJ7 at the top: only the notes that fit
 	CHECK_EQUAL(1, c.count);
 }
+
+TEST(ChordModeTests, recognisesPlayedChordsAndInversions) {
+	const int16_t cmaj[] = {60, 64, 67};
+	Recognised r = recognise(cmaj, 3);
+	CHECK_EQUAL(60, r.root);
+	STRCMP_EQUAL("MAJ", r.quality);
+	const int16_t firstInversion[] = {64, 67, 72}; // E G C
+	r = recognise(firstInversion, 3);
+	CHECK_EQUAL(72, r.root);
+	STRCMP_EQUAL("MAJ", r.quality);
+	const int16_t c6[] = {60, 64, 67, 69}; // also Am7: the lowest note wins
+	r = recognise(c6, 4);
+	CHECK_EQUAL(60, r.root);
+	STRCMP_EQUAL("6", r.quality);
+	const int16_t g69[] = {55, 57, 59, 62, 64};
+	STRCMP_EQUAL("69", recognise(g69, 5).quality);
+	const int16_t g7sus2[] = {55, 57, 62, 65};
+	STRCMP_EQUAL("7SUS2", recognise(g7sus2, 4).quality);
+	const int16_t cluster[] = {60, 61, 62};
+	r = recognise(cluster, 3);
+	CHECK_EQUAL(60, r.root);
+	STRCMP_EQUAL("", r.quality);
+	CHECK_EQUAL(-1, recognise(cluster, 0).root);
+}

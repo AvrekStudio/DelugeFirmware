@@ -19,6 +19,7 @@
 
 #include "gui/menu_item/integer.h"
 #include "gui/menu_item/two_row_menu.h"
+#include "hid/display/oled_canvas/canvas.h"
 #include "util/chord_mode_calc.h"
 
 // CHORD MODE (SOUND menu, synth tracks): "CHORD MODE" written down the left, a two-octave keyboard showing the chord
@@ -98,5 +99,16 @@ private:
 	uint32_t drawnPlayCounter_ = 0;
 	static void clearPopup();
 };
+
+// Drawing shared with the keyboard's CHORD / CHORD LIB pages
+void drawChordKeyboard(deluge::hid::display::oled_canvas::Canvas& image);
+/// The notes on the keyboard (the root marked), the root in the low octave or the high one
+void drawChordNotes(deluge::hid::display::oled_canvas::Canvas& image, const int16_t* notes, int32_t count, int32_t root,
+                    bool rootInHighOctave);
+/// The chord's name on the right of the keyboard: root, then quality
+void drawChordName(deluge::hid::display::oled_canvas::Canvas& image, int32_t root, const char* quality);
+/// A setting under the keyboard, `index` of `count` columns: label above, value below, framed when selected
+void drawSettingCell(deluge::hid::display::oled_canvas::Canvas& image, int32_t index, int32_t count, const char* label,
+                     const char* value, bool selected);
 
 } // namespace deluge::gui::menu_item::chord_mode

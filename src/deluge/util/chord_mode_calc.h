@@ -181,6 +181,29 @@ inline Chord build(const Settings& s, int32_t key, const Scale& scale) {
 	return c;
 }
 
+/// A chord quality from its pitch classes above the root (bit 0 = the root): "MAJ", "MIN", "5", "7", "69"...,
+/// nullptr if it isn't one we know
+inline const char* qualityFromMask(uint16_t mask) {
+	struct Named {
+		uint16_t mask;
+		const char* name;
+	};
+	static constexpr std::array<Named, 24> kNames = {{
+	    {0b000010010001, "MAJ"},   {0b000010001001, "MIN"},  {0b000001001001, "DIM"},   {0b000100010001, "AUG"},
+	    {0b000010000001, "5"},     {0b000010100001, "SUS4"}, {0b000010000101, "SUS2"},  {0b100010010001, "MAJ7"},
+	    {0b010010001001, "MIN7"},  {0b010010010001, "7"},    {0b010001001001, "M7B5"},  {0b001001001001, "DIM7"},
+	    {0b100010001001, "MMAJ7"}, {0b001010010001, "6"},    {0b001010001001, "M6"},    {0b010010000101, "7SUS2"},
+	    {0b010010100001, "7SUS4"}, {0b000010010101, "ADD9"}, {0b000010001101, "MADD9"}, {0b010010010101, "9"},
+	    {0b100010010101, "MAJ9"},  {0b010010001101, "MIN9"}, {0b001010010101, "69"},    {0b001010001101, "M69"},
+	}};
+	for (const Named& n : kNames) {
+		if (n.mask == mask) {
+			return n.name;
+		}
+	}
+	return nullptr;
+}
+
 /// The chord's quality, from its notes above the root: "MAJ", "MIN", "5", "7", "SUS4"...
 inline const char* qualityName(const Chord& c) {
 	uint16_t mask = 0;
@@ -190,31 +213,52 @@ inline const char* qualityName(const Chord& c) {
 			mask |= 1 << iv;
 		}
 	}
-	struct Named {
-		uint16_t mask;
-		const char* name;
+	const char* name = qualityFromMask(mask);
+	return name != nullptr ? name : "?";
+}
+
+/// Names a chord played as notes (keyboard Chord / Chord Library layouts): its root and quality. Inversions are
+/// recognised; when several roots fit, the lowest note wins if it makes a known chord.
+struct Recognised {
+	int32_t root = -1; // a note of the chord (-1: no notes)
+	const char* quality = "";
+};
+
+inline Recognised recognise(const int16_t* notes, int32_t count) {
+	Recognised r;
+	if (count <= 0) {
+		return r;
+	}
+	int32_t lowest = notes[0];
+	for (int32_t i = 1; i < count; i++) {
+		lowest = notes[i] < lowest ? notes[i] : lowest;
+	}
+	auto maskAbove = [&](int32_t root) {
+		uint16_t mask = 0;
+		for (int32_t i = 0; i < count; i++) {
+			mask |= 1 << (((notes[i] - root) % 12 + 12) % 12);
+		}
+		return mask;
 	};
-	static constexpr std::array<Named, 13> kNames = {{
-	    {0b000010010001, "MAJ"},
-	    {0b000010001001, "MIN"},
-	    {0b000001001001, "DIM"},
-	    {0b000100010001, "AUG"},
-	    {0b000010000001, "5"},
-	    {0b000010100001, "SUS4"},
-	    {0b000010000101, "SUS2"},
-	    {0b100010010001, "MAJ7"},
-	    {0b010010001001, "MIN7"},
-	    {0b010010010001, "7"},
-	    {0b010001001001, "M7B5"},
-	    {0b001001001001, "DIM7"},
-	    {0b100010001001, "MMAJ7"},
-	}};
-	for (const Named& n : kNames) {
-		if (n.mask == mask) {
-			return n.name;
+	// the lowest note first, then the others from the bottom up
+	if (const char* q = qualityFromMask(maskAbove(lowest))) {
+		return {lowest, q};
+	}
+	int32_t best = -1;
+	const char* bestName = nullptr;
+	for (int32_t i = 0; i < count; i++) {
+		if (notes[i] == lowest || (best >= 0 && notes[i] >= best)) {
+			continue;
+		}
+		if (const char* q = qualityFromMask(maskAbove(notes[i]))) {
+			best = notes[i];
+			bestName = q;
 		}
 	}
-	return "?";
+	if (best >= 0) {
+		return {best, bestName};
+	}
+	return {lowest, ""};
 }
 
 } // namespace deluge::chordmode

@@ -17,7 +17,9 @@
 #include "gui/ui/keyboard/keyboard_screen.h"
 #include "definitions_cxx.hpp"
 #include "extern.h"
+#include "gui/menu_item/chord_mode.h"
 #include "gui/menu_item/multi_range.h"
+#include "gui/menu_item/vertical_title.h"
 #include "gui/ui/audio_recorder.h"
 #include "gui/ui/sound_editor.h"
 #include "gui/ui_timer_manager.h"
@@ -41,6 +43,8 @@
 #include "playback/playback_handler.h"
 #include "processing/engines/audio_engine.h"
 #include "processing/sound/sound_instrument.h"
+#include "util/chord_mode_calc.h"
+#include <cstdio>
 #include <cstring>
 
 #include "gui/ui/keyboard/layout.h"
@@ -213,9 +217,11 @@ void KeyboardScreen::updateActiveNotes() {
 		~ChordModeSuppression() {
 			if (sound != nullptr) {
 				sound->chordModeSuppressed = false;
+				sound->keyboardStrumIndex = -1;
 			}
 		}
 	} chordModeSuppression;
+	int8_t notesStarted = 0; // the CHORD / CHORD LIB pages' STRUM: the place of each note in the chord
 	if (activeInstrument != nullptr && activeInstrument->type == OutputType::SYNTH) {
 		const auto& state = getCurrentInstrumentClip()->keyboardState;
 		const bool layoutMakesChords = state.currentLayout == KeyboardLayoutType::KeyboardLayoutTypeChord
@@ -322,6 +328,9 @@ void KeyboardScreen::updateActiveNotes() {
 			unscrolledPadAudition(currentNotesState.notes[idx].velocity, newNote, false);
 		}
 		else {
+			if (chordModeSuppression.sound != nullptr && chordModeSuppression.sound->chordModeSuppressed) {
+				chordModeSuppression.sound->keyboardStrumIndex = notesStarted++;
+			}
 			((MelodicInstrument*)activeInstrument)
 			    ->beginAuditioningForNote(modelStack, newNote, currentNotesState.notes[idx].velocity,
 			                              currentNotesState.notes[idx].mpeValues);
@@ -329,8 +338,8 @@ void KeyboardScreen::updateActiveNotes() {
 
 		// Post sound logic for non-retrigger events
 		if (currentToLastIdx[idx] == -1) {
-			if (!currentNotesState.notes[idx].generatedNote) {
-				drawNoteCode(newNote);
+			if (!currentNotesState.notes[idx].generatedNote && !onChordPage()) {
+				drawNoteCode(newNote); // (the CHORD / CHORD LIB pages show the chord on their own screen)
 			}
 			enterUIMode(UI_MODE_AUDITIONING);
 
@@ -391,6 +400,10 @@ void KeyboardScreen::updateActiveNotes() {
 		noteOff(*modelStack, *activeInstrument, clipIsActiveOnInstrument, oldNote);
 	}
 
+	if (onChordPage() && display->haveOLED() && getCurrentUI() == this) {
+		renderUIsForOled(); // the CHORD / CHORD LIB screen shows the chord held
+	}
+
 	if (lastNotesState.count != 0 && currentNotesState.count == 0) {
 		exitUIMode(UI_MODE_AUDITIONING);
 
@@ -401,6 +414,48 @@ void KeyboardScreen::updateActiveNotes() {
 			redrawNumericDisplay();
 		}
 	}
+}
+
+bool KeyboardScreen::onChordPage() const {
+	if (getCurrentOutputType() != OutputType::SYNTH || getCurrentInstrumentClip() == nullptr) {
+		return false;
+	}
+	const auto layout = getCurrentInstrumentClip()->keyboardState.currentLayout;
+	return layout == KeyboardLayoutType::KeyboardLayoutTypeChord
+	       || layout == KeyboardLayoutType::KeyboardLayoutTypeChordLibrary;
+}
+
+void KeyboardScreen::renderOLED(deluge::hid::display::oled_canvas::Canvas& canvas) {
+	if (!onChordPage()) {
+		InstrumentClipMinder::renderOLED(canvas);
+		return;
+	}
+	namespace chord_mode = deluge::gui::menu_item::chord_mode;
+	// "CHORD" / "CHORD LIB" down the left, the chord held on the keyboard with its name, STRUM below
+	const bool library =
+	    getCurrentInstrumentClip()->keyboardState.currentLayout == KeyboardLayoutType::KeyboardLayoutTypeChordLibrary;
+	canvas.clear();
+	deluge::gui::menu_item::drawVerticalTitle(library ? "CHORD LIB" : "CHORD", true);
+	chord_mode::drawChordKeyboard(canvas);
+	std::array<int16_t, kMaxNumActiveNotes> notes{};
+	int32_t count = 0;
+	for (const NoteState& n : currentNotesState) {
+		notes[count++] = n.note;
+	}
+	if (count > 0) {
+		const deluge::chordmode::Recognised chord = deluge::chordmode::recognise(notes.data(), count);
+		chord_mode::drawChordNotes(canvas, notes.data(), count, chord.root, false);
+		chord_mode::drawChordName(canvas, chord.root, chord.quality);
+	}
+	const auto* sound = static_cast<SoundInstrument*>(getCurrentOutput());
+	char strum[8];
+	if (sound->keyboardChordStrumMs == 0) {
+		snprintf(strum, sizeof(strum), "OFF");
+	}
+	else {
+		snprintf(strum, sizeof(strum), "%d", static_cast<int>(sound->keyboardChordStrumMs));
+	}
+	chord_mode::drawSettingCell(canvas, 1, 3, "STRUM", strum, true);
 }
 
 void KeyboardScreen::noteOff(ModelStack& modelStack, Instrument& activeInstrument, bool clipIsActiveOnInstrument,
@@ -742,9 +797,22 @@ void KeyboardScreen::selectLayout(int8_t offset) {
 	// Precalculate because changing instruments can change pad colours
 	layout_list[getCurrentInstrumentClip()->keyboardState.currentLayout]->precalculate();
 	requestRendering();
+	if (display->haveOLED() && getCurrentUI() == this) {
+		renderUIsForOled(); // the CHORD / CHORD LIB pages have their own screen
+	}
 }
 
 void KeyboardScreen::selectEncoderAction(int8_t offset) {
+	if (!keyboardButtonActive && currentUIMode != UI_MODE_SCALE_MODE_BUTTON_PRESSED && onChordPage()) {
+		// the CHORD / CHORD LIB pages: SELECT sets their STRUM (1 ms steps to 20, 5 to 100, then 10)
+		auto* sound = static_cast<SoundInstrument*>(getCurrentOutput());
+		int32_t v = sound->keyboardChordStrumMs;
+		const int32_t step = (offset > 0 ? v : v - 1) < 20 ? 1 : ((offset > 0 ? v : v - 1) < 100 ? 5 : 10);
+		v = std::clamp<int32_t>(v + (offset > 0 ? step : -step), 0, deluge::chordmode::kStrumMaxMs);
+		sound->keyboardChordStrumMs = static_cast<uint16_t>(v);
+		renderUIsForOled();
+		return;
+	}
 	if (keyboardButtonActive) {
 		keyboardButtonUsed = true;
 		selectLayout(offset);
