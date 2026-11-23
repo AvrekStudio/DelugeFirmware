@@ -100,6 +100,7 @@ add_executable(UnitTests
         midi_queue_tests.cpp
         fast_pythag_tests.cpp
         tick_interpolation_tests.cpp
+        arp_steps_tests.cpp
 )
 add_test(NAME UnitTests
         COMMAND UnitTests)

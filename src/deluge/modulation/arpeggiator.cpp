@@ -708,6 +708,12 @@ void ArpeggiatorBase::executeArpStep(ArpeggiatorSettings* settings, uint8_t numA
 		stepRepeatIndex = 0;
 		whichNoteCurrentlyOnPostArp = 0;
 		glideOnNextNoteOff = false;
+		stepSequenceCounter = 0;
+	}
+
+	if (!isRatchet) {
+		// The step sequence moves on with every arp note, played or silent (a ratchet stays on its step)
+		currentStep = settings->steps.stepAt(stepSequenceCounter++);
 	}
 
 	// Probabilities
@@ -1351,7 +1357,10 @@ void Arpeggiator::switchNoteOn(ArpeggiatorSettings* settings, ArpReturnInstructi
 		// Normal pattern step
 		arpNote = (ArpNote*)notes.getElementAddress(whichNoteCurrentlyOnPostArp);
 	}
-	if (shouldCarryOnRhythmNote && shouldPlayNote) {
+	// An OFF step is a silence: the arp has moved on to its next note all the same
+	const bool stepIsOn = settings->steps.isOn(currentStep);
+
+	if (shouldCarryOnRhythmNote && shouldPlayNote && stepIsOn) {
 		// Set Gate as active
 		gateCurrentlyActive = true;
 		if (!isRatchet) {
@@ -1391,17 +1400,23 @@ void Arpeggiator::switchNoteOn(ArpeggiatorSettings* settings, ArpReturnInstructi
 		else if (shouldPlayRandomStep) {
 			// Random step
 			note = arpNote->inputCharacteristics[util::to_underlying(MIDICharacteristic::NOTE)]
-			       + (int16_t)(getRandom255() % settings->numOctaves) * 12;
+			       + (int16_t)deluge::modulation::OctaveSpan::octaveOf(getRandom255() % settings->numOctaves,
+			                                                           settings->numOctaves, settings->octavesBelow)
+			             * 12;
 		}
 		else {
 			// Normal pattern step
-			int16_t diff = (int16_t)currentOctave * 12;
+			int16_t diff = (int16_t)deluge::modulation::OctaveSpan::octaveOf(currentOctave, settings->numOctaves,
+			                                                                 settings->octavesBelow)
+			               * 12;
 			if (spreadOctaveForCurrentStep != 0) {
 				// Now apply octave spread to the base note
 				diff = diff + spreadOctaveForCurrentStep * 12;
 			}
 			note = arpNote->inputCharacteristics[util::to_underlying(MIDICharacteristic::NOTE)] + diff;
 		}
+		// The step moves its note
+		note += settings->steps.offset[currentStep];
 		// And fix it if out of bounds
 		if (note < 0) {
 			note = 0;
@@ -1637,6 +1652,8 @@ void ArpeggiatorSettings::cloneFrom(ArpeggiatorSettings const* other) {
 	noteMode = other->noteMode;
 	chordTypeIndex = other->chordTypeIndex;
 	numOctaves = other->numOctaves;
+	octavesBelow = other->octavesBelow;
+	steps = other->steps;
 	numStepRepeats = other->numStepRepeats;
 	includeInKitArp = other->includeInKitArp;
 	randomizerLock = other->randomizerLock;
@@ -1666,6 +1683,18 @@ bool ArpeggiatorSettings::readCommonTagsFromFile(Deserializer& reader, char cons
                                                  Song* songToConvertSyncLevel) {
 	if (!strcmp(tagName, "numOctaves")) {
 		numOctaves = reader.readTagOrAttributeValueInt();
+	}
+	else if (!strcmp(tagName, "octavesBelow")) {
+		octavesBelow = reader.readTagOrAttributeValueInt();
+	}
+	else if (!strcmp(tagName, "stepsLen")) {
+		steps.setLen(reader.readTagOrAttributeValueInt());
+	}
+	else if (!strcmp(tagName, "steps")) {
+		std::array<uint8_t, deluge::modulation::ArpSteps::kNumBytes> bytes{};
+		if (reader.readTagOrAttributeValueHexBytes(bytes.data(), bytes.size()) == static_cast<int>(bytes.size())) {
+			steps.fromBytes(bytes.data());
+		}
 	}
 	else if (!strcmp(tagName, "stepRepeat")) {
 		numStepRepeats = reader.readTagOrAttributeValueInt();
@@ -1884,6 +1913,13 @@ void ArpeggiatorSettings::writeCommonParamsToFile(Serializer& writer, Song* song
 	writer.writeAttribute("octaveMode", (char*)arpOctaveModeToString(octaveMode));
 	writer.writeAttribute("mpeVelocity", (char*)arpMpeModSourceToString(mpeVelocity));
 	writer.writeAttribute("stepRepeat", numStepRepeats);
+	writer.writeAttribute("octavesBelow", octavesBelow);
+	writer.writeAttribute("stepsLen", steps.len);
+	{
+		std::array<uint8_t, deluge::modulation::ArpSteps::kNumBytes> bytes{};
+		steps.toBytes(bytes.data());
+		writer.writeAttributeHexBytes("steps", bytes.data(), bytes.size());
+	}
 	writer.writeAttribute("randomizerLock", randomizerLock);
 	writer.writeAttribute("kitArp", includeInKitArp);
 

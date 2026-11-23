@@ -3,6 +3,7 @@
 #include "definitions_cxx.hpp"
 #include "extern.h"
 #include "gui/l10n/strings.h"
+#include "gui/menu_item/arpeggiator/steps.h"
 #include "gui/menu_item/dx/param.h"
 #include "gui/menu_item/file_selector.h"
 #include "gui/menu_item/horizontal_menu.h"
@@ -247,6 +248,15 @@ static bool isOtherModSourcePadPressed(int32_t x, int32_t y) {
 
 bool SoundEditor::renderMainPads(uint32_t whichRows, RGB image[][kDisplayWidth + kSideBarWidth],
                                  uint8_t occupancyMask[][kDisplayWidth + kSideBarWidth], bool drawUndefinedArea) {
+
+	// The ARP screen with RHYT selected: the grid is the arp's step sequence
+	if (auto* arpScreen = menu_item::arpeggiator::openArpScreen(); arpScreen != nullptr && arpScreen->editingSteps()) {
+		if (image != nullptr) {
+			arpScreen->renderPads(whichRows, image, occupancyMask);
+		}
+		haveRenderedPads = true;
+		return true;
+	}
 
 	if (!image) {
 		D_PRINTLN("no image");
@@ -1736,6 +1746,12 @@ ActionResult SoundEditor::padAction(int32_t x, int32_t y, int32_t on) {
 
 	RootUI* rootUI = getRootUI();
 
+	// The ARP screen with RHYT selected: the grid edits the arp's steps
+	if (auto* arpScreen = menu_item::arpeggiator::openArpScreen();
+	    arpScreen != nullptr && arpScreen->padAction(x, y, on)) {
+		return ActionResult::DEALT_WITH;
+	}
+
 	ActionResult result = potentialShortcutPadAction(x, y, on);
 	if (result != ActionResult::NOT_DEALT_WITH) {
 		return result;
@@ -1861,6 +1877,10 @@ bool SoundEditor::isEditingAutomationViewParam() {
 }
 
 ActionResult SoundEditor::verticalEncoderAction(int32_t offset, bool inCardRoutine) {
+	if (auto* arpScreen = menu_item::arpeggiator::openArpScreen();
+	    arpScreen != nullptr && arpScreen->stepEncoderAction(offset)) {
+		return ActionResult::DEALT_WITH; // the ARP's steps: a held step's note, or scrolling the rows shown
+	}
 	if (inNoteEditor()) {
 		return instrumentClipView.handleNoteEditorVerticalEncoderAction(offset, inCardRoutine);
 	}

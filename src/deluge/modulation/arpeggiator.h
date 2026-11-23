@@ -20,6 +20,7 @@
 #include "algorithm"
 #include "definitions_cxx.hpp"
 #include "model/sync.h"
+#include "modulation/arp_steps.h"
 #include "storage/storage_manager.h"
 #include "util/container/array/ordered_resizeable_array.h"
 #include "util/container/array/resizeable_array.h"
@@ -81,6 +82,11 @@ public:
 
 	// Octave settings
 	uint8_t numOctaves{2};
+	// The octaves go below the notes held (OCTA negative) instead of above them
+	bool octavesBelow{false};
+
+	// Step sequence: LEN steps, each ON / OFF and moving its note by some semitones
+	deluge::modulation::ArpSteps steps;
 
 	// Number of repetitions of each step
 	uint8_t numStepRepeats{1};
@@ -251,6 +257,9 @@ public:
 	}
 	ArpNote active_note; // For the currently active note.
 
+	/// The step of the step sequence the arp is on, or -1 when it isn't playing
+	[[nodiscard]] int32_t playingStep() const { return playedFirstArpeggiatedNoteYet ? currentStep : -1; }
+
 	std::array<int16_t, ARP_MAX_INSTRUCTION_NOTES> glideNoteCodeCurrentlyOnPostArp;
 	std::array<uint8_t, ARP_MAX_INSTRUCTION_NOTES> outputMIDIChannelForGlideNoteCurrentlyOnPostArp;
 	uint32_t gatePos = 0;
@@ -320,6 +329,10 @@ protected:
 
 	// Step repeat state
 	int32_t stepRepeatIndex = 0;
+
+	// Step sequence state: arp notes since the start, and the step the last one is on
+	uint32_t stepSequenceCounter = 0;
+	int32_t currentStep = 0;
 
 	// Ratcheting state
 	uint32_t ratchetNotesIndex = 0;

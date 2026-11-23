@@ -27,14 +27,21 @@
 #include "model/song/song.h"
 #include "processing/sound/sound.h"
 
+#include <array>
 #include <hid/display/oled.h>
 #include <numeric>
+#include <string_view>
 
 namespace deluge::gui::menu_item::arpeggiator {
+constexpr int32_t kTwoRowSlotHeight = 13; // value height of a TwoRowMenu cell
 class PresetMode final : public Selection {
 public:
 	using Selection::Selection;
-	void readCurrentValue() override { this->setValue(soundEditor.currentArpSettings->preset); }
+	void readCurrentValue() override {
+		// CUSTOM is set aside for now: shown as WALK, the last preset offered
+		const ArpPreset preset = soundEditor.currentArpSettings->preset;
+		this->setValue(preset == ArpPreset::CUSTOM ? ArpPreset::WALK : preset);
+	}
 
 	bool usesAffectEntire() override { return true; }
 	void writeCurrentValue() override {
@@ -103,7 +110,7 @@ public:
 		    l10n::getView(STRING_FOR_BOTH),   //<
 		    l10n::getView(STRING_FOR_RANDOM), //<
 		    l10n::getView(STRING_FOR_WALK),   //<
-		    l10n::getView(STRING_FOR_CUSTOM), //<
+		    // CUSTOM is set aside for now: its octave / note modes aren't on the ARP screen
 		};
 	}
 
@@ -125,6 +132,15 @@ public:
 	void renderInHorizontalMenu(const SlotPosition& slot) override {
 		using namespace deluge::hid::display;
 		oled_canvas::Canvas& image = OLED::main;
+
+		if (slot.height <= kTwoRowSlotHeight) {
+			// small two-row cell: the preset's name, the same size as the other cells' values (icons don't fit)
+			constexpr std::array<const char*, 7> kShort = {"OFF", "UP", "DOWN", "BOTH", "RAND", "WALK", "CUST"};
+			const auto index = static_cast<size_t>(this->getValue<ArpPreset>());
+			const char* name = index < kShort.size() ? kShort[index] : "?";
+			return image.drawStringCentered(name, slot.start_x, slot.start_y + kHorizontalMenuSlotYOffset,
+			                                kTextSpacingX, kTextSpacingY, slot.width);
+		}
 
 		if (this->getValue<ArpPreset>() == ArpPreset::OFF) {
 			const auto off = l10n::get(l10n::String::STRING_FOR_OFF);

@@ -19,6 +19,7 @@
 #include "gui/menu_item/arpeggiator/rhythm.h"
 #include "gui/menu_item/arpeggiator/sequence_length.h"
 #include "gui/menu_item/arpeggiator/step_repeat.h"
+#include "gui/menu_item/arpeggiator/steps.h"
 #include "gui/menu_item/arpeggiator/sync.h"
 #include "gui/menu_item/audio_clip/attack.h"
 #include "gui/menu_item/audio_clip/audio_source_selector.h"
@@ -219,6 +220,7 @@
 #include "gui/menu_item/synth_mode.h"
 #include "gui/menu_item/trigger/in/ppqn.h"
 #include "gui/menu_item/trigger/out/ppqn.h"
+#include "gui/menu_item/two_row_menu.h"
 #include "gui/menu_item/unison/count.h"
 #include "gui/menu_item/unison/detune.h"
 #include "gui/menu_item/unison/stereoSpread.h"
@@ -416,6 +418,19 @@ PLACE_SDRAM_BSS Submenu arpMenu{
         &arpIncludeInKitArpMenu,
     },
 };
+
+// Arp: everything on one two-row screen (synth tracks); RHYT selected = the grid edits the step sequence
+PLACE_SDRAM_BSS arpeggiator::OctaveSpan arpOctaveSpanMenu{STRING_FOR_NUMBER_OF_OCTAVES,
+                                                          STRING_FOR_ARP_OCTAVES_MENU_TITLE};
+PLACE_SDRAM_BSS arpeggiator::StepCount arpStepCountMenu{STRING_FOR_SEQUENCE_LENGTH,
+                                                        STRING_FOR_ARP_SEQUENCE_LENGTH_MENU_TITLE};
+PLACE_SDRAM_BSS arpeggiator::StepsCell arpStepsCell{STRING_FOR_RHYTHM, STRING_FOR_ARP_RHYTHM_MENU_TITLE};
+PLACE_SDRAM_BSS arpeggiator::ArpScreen arpTwoRowMenu{STRING_FOR_ARPEGGIATOR,
+                                                     STRING_FOR_ARP_SHORT_TITLE,
+                                                     {&arpPresetModeMenu, &arpGateMenu, &arpSyncMenu, &arpRateMenu,
+                                                      &arpOctaveSpanMenu, &arpStepRepeatMenu, &arpStepCountMenu,
+                                                      &arpStepsCell},
+                                                     arpStepsCell};
 
 PLACE_SDRAM_BSS Submenu arpMenuMIDIOrCV{
     STRING_FOR_ARPEGGIATOR,
@@ -1520,7 +1535,7 @@ PLACE_SDRAM_BSS Submenu soundEditorRootMenu{
     {
         &soundEditorRootActionsMenu,
         &soundMasterMenu,
-        &arpMenu,
+        &arpTwoRowMenu,
         &randomizerMenu,
         &audioCompMenu,
         &soundFiltersMenu,
