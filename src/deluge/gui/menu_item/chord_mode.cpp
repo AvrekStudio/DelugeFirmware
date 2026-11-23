@@ -317,6 +317,23 @@ void drawChordName(deluge::hid::display::oled_canvas::Canvas& image, int32_t roo
 	image.drawStringCentered(quality, kNameX, kKeysTop + 11, kTextSmallSpacingX, kTextSmallSizeY, nameW);
 }
 
+void drawEmptyCell(deluge::hid::display::oled_canvas::Canvas& image, int32_t index, int32_t count) {
+	// a dotted frame where a setting could go
+	const int32_t w = (OLED_MAIN_WIDTH_PIXELS - kColX) / count;
+	const int32_t x0 = kColX + index * w + 1;
+	const int32_t x1 = kColX + index * w + w - 3;
+	const int32_t y0 = kColTop + 1;
+	const int32_t y1 = OLED_MAIN_HEIGHT_PIXELS - 2;
+	for (int32_t x = x0; x <= x1; x += 2) {
+		image.drawPixel(x, y0);
+		image.drawPixel(x, y1);
+	}
+	for (int32_t y = y0; y <= y1; y += 2) {
+		image.drawPixel(x0, y);
+		image.drawPixel(x1, y);
+	}
+}
+
 void drawSettingCell(deluge::hid::display::oled_canvas::Canvas& image, int32_t index, int32_t count, const char* label,
                      const char* value, bool selected) {
 	const int32_t w = (OLED_MAIN_WIDTH_PIXELS - kColX) / count;

@@ -540,7 +540,8 @@ void KeyboardScreen::renderOLED(deluge::hid::display::oled_canvas::Canvas& canva
 	}
 	chord_mode::drawSettingCell(canvas, 1, 4, "STRUM", strum, chordPageCell == 1);
 	chord_mode::drawSettingCell(canvas, 2, 4, "LATCH", sound->keyboardChordLatch ? "ON" : "OFF", chordPageCell == 2);
-	// (the 4th column is left empty) - the button of the column selected is lit
+	chord_mode::drawEmptyCell(canvas, 3, 4);
+	// the button of the column selected is lit
 	indicator_leds::setLedState(indicator_leds::LED::SYNTH, chordPageCell == 0);
 	indicator_leds::setLedState(indicator_leds::LED::KIT, chordPageCell == 1);
 	indicator_leds::setLedState(indicator_leds::LED::MIDI, chordPageCell == 2);
