@@ -206,6 +206,50 @@ void KeyboardScreen::evaluateActiveNotes() {
 	lastNotesState = currentNotesState;
 	layout_list[getCurrentInstrumentClip()->keyboardState.currentLayout]->evaluatePads(pressedPads);
 	currentNotesState = layout_list[getCurrentInstrumentClip()->keyboardState.currentLayout]->getNotesState();
+	applyChordLatch();
+}
+
+void KeyboardScreen::applyChordLatch() {
+	const bool latchOn = onChordPage() && static_cast<SoundInstrument*>(getCurrentOutput())->keyboardChordLatch;
+	const uint8_t held = currentNotesState.count;
+	const uint8_t heldBefore = chordPadsHeldBefore_;
+	chordPadsHeldBefore_ = held;
+	if (!latchOn) {
+		chordLatchHolding_ = false;
+		chordLatchStopping_ = false;
+		return;
+	}
+	if (held > 0) {
+		if (heldBefore == 0 && chordLatchHolding_ && currentNotesState.states == chordLatched_.states) {
+			// the latched chord pressed again: it stops
+			chordLatchHolding_ = false;
+			chordLatchStopping_ = true;
+		}
+		if (chordLatchStopping_) {
+			currentNotesState = {0};
+			return;
+		}
+		chordLatched_ = currentNotesState; // a new chord replaces the latched one
+		chordLatchHolding_ = true;
+		return;
+	}
+	chordLatchStopping_ = false;
+	if (chordLatchHolding_) {
+		currentNotesState = chordLatched_; // let go: it keeps playing
+	}
+}
+
+void KeyboardScreen::releaseChordLatch() {
+	if (!chordLatchHolding_ && !chordLatchStopping_) {
+		return;
+	}
+	chordLatchHolding_ = false;
+	chordLatchStopping_ = false;
+	lastNotesState = currentNotesState;
+	currentNotesState = layout_list[getCurrentInstrumentClip()->keyboardState.currentLayout]->getNotesState();
+	chordPadsHeldBefore_ = currentNotesState.count;
+	updateActiveNotes();
+	requestRendering();
 }
 
 void KeyboardScreen::updateActiveNotes() {
@@ -447,7 +491,11 @@ void KeyboardScreen::renderOLED(deluge::hid::display::oled_canvas::Canvas& canva
 		chord_mode::drawChordNotes(canvas, notes.data(), count, chord.root, false);
 		chord_mode::drawChordName(canvas, chord.root, chord.quality);
 	}
-	const auto* sound = static_cast<SoundInstrument*>(getCurrentOutput());
+	auto* sound = static_cast<SoundInstrument*>(getCurrentOutput());
+	// PATCH: the preset (SELECT changes it, as elsewhere)
+	char patch[8];
+	snprintf(patch, sizeof(patch), "%s", sound->name.isEmpty() ? "-" : sound->name.get());
+	chord_mode::drawSettingCell(canvas, 0, 3, "PATCH", patch, chordPageCell == 0);
 	char strum[8];
 	if (sound->keyboardChordStrumMs == 0) {
 		snprintf(strum, sizeof(strum), "OFF");
@@ -455,7 +503,8 @@ void KeyboardScreen::renderOLED(deluge::hid::display::oled_canvas::Canvas& canva
 	else {
 		snprintf(strum, sizeof(strum), "%d", static_cast<int>(sound->keyboardChordStrumMs));
 	}
-	chord_mode::drawSettingCell(canvas, 1, 3, "STRUM", strum, true);
+	chord_mode::drawSettingCell(canvas, 1, 3, "STRUM", strum, chordPageCell == 1);
+	chord_mode::drawSettingCell(canvas, 2, 3, "LATCH", sound->keyboardChordLatch ? "ON" : "OFF", chordPageCell == 2);
 }
 
 void KeyboardScreen::noteOff(ModelStack& modelStack, Instrument& activeInstrument, bool clipIsActiveOnInstrument,
@@ -491,6 +540,16 @@ ActionResult KeyboardScreen::buttonAction(deluge::hid::Button b, bool on, bool i
 
 	if (inCardRoutine) {
 		return ActionResult::REMIND_ME_OUTSIDE_CARD_ROUTINE;
+	}
+
+	// The CHORD / CHORD LIB pages: SYNTH = PATCH, KIT = STRUM, MIDI = LATCH (CV does nothing there)
+	if (onChordPage() && (b == SYNTH || b == KIT || b == MIDI || b == CV) && !Buttons::isShiftButtonPressed()
+	    && (currentUIMode == UI_MODE_NONE || currentUIMode == UI_MODE_AUDITIONING)) {
+		if (on && b != CV) {
+			chordPageCell = b == SYNTH ? 0 : (b == KIT ? 1 : 2);
+			renderUIsForOled();
+		}
+		return ActionResult::DEALT_WITH;
 	}
 
 	// Scale mode button
@@ -769,6 +828,9 @@ void KeyboardScreen::selectLayout(int8_t offset) {
 		nextLayout = 0;
 	}
 
+	if ((KeyboardLayoutType)nextLayout != lastLayout) {
+		releaseChordLatch(); // a latched chord ends with its page
+	}
 	getCurrentInstrumentClip()->keyboardState.currentLayout = (KeyboardLayoutType)nextLayout;
 	if (getCurrentInstrumentClip()->keyboardState.currentLayout != lastLayout) {
 		display->displayPopup(l10n::get(layout_list[getCurrentInstrumentClip()->keyboardState.currentLayout]->name()));
@@ -803,7 +865,19 @@ void KeyboardScreen::selectLayout(int8_t offset) {
 }
 
 void KeyboardScreen::selectEncoderAction(int8_t offset) {
-	if (!keyboardButtonActive && currentUIMode != UI_MODE_SCALE_MODE_BUTTON_PRESSED && onChordPage()) {
+	if (!keyboardButtonActive && currentUIMode != UI_MODE_SCALE_MODE_BUTTON_PRESSED && onChordPage()
+	    && chordPageCell == 2) {
+		// LATCH: turned up = ON, down = OFF (OFF ends the latched chord)
+		auto* sound = static_cast<SoundInstrument*>(getCurrentOutput());
+		sound->keyboardChordLatch = offset > 0;
+		if (!sound->keyboardChordLatch) {
+			releaseChordLatch();
+		}
+		renderUIsForOled();
+		return;
+	}
+	if (!keyboardButtonActive && currentUIMode != UI_MODE_SCALE_MODE_BUTTON_PRESSED && onChordPage()
+	    && chordPageCell == 1) {
 		// the CHORD / CHORD LIB pages: SELECT sets their STRUM (1 ms steps to 20, 5 to 100, then 10)
 		auto* sound = static_cast<SoundInstrument*>(getCurrentOutput());
 		int32_t v = sound->keyboardChordStrumMs;
@@ -840,12 +914,15 @@ void KeyboardScreen::selectEncoderAction(int8_t offset) {
 		requestRendering();
 	}
 	else {
-		InstrumentClipMinder::selectEncoderAction(offset);
+		InstrumentClipMinder::selectEncoderAction(offset); // (PATCH on the CHORD / CHORD LIB pages)
 		// Ensure scroll values are calculated in bounds
 		layout_list[getCurrentInstrumentClip()->keyboardState.currentLayout]->handleHorizontalEncoder(
 		    0, false, pressedPads, xEncoderActive);
 		layout_list[getCurrentInstrumentClip()->keyboardState.currentLayout]->precalculate();
 		requestRendering();
+		if (onChordPage() && display->haveOLED()) {
+			renderUIsForOled(); // PATCH shows the new preset
+		}
 	}
 }
 

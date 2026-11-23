@@ -101,6 +101,7 @@ public:
 	/// The keyboard's CHORD / CHORD LIB pages: STRUM (ms between the chord's notes, arp off), and the place of the note
 	/// being played in the chord being started (0 = first, -1 = not part of one)
 	uint16_t keyboardChordStrumMs = 0;
+	bool keyboardChordLatch = false;
 	int8_t keyboardStrumIndex = -1;
 
 private:

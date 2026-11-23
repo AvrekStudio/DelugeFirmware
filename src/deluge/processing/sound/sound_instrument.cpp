@@ -51,6 +51,7 @@ bool SoundInstrument::writeDataToFile(Serializer& writer, Clip* clipForSavingOut
 	writer.writeAttribute("chordStrum", chordSettings.strumMs);
 	writer.writeAttribute("chordBass", chordSettings.bass);
 	writer.writeAttribute("keyboardChordStrumMs", keyboardChordStrumMs);
+	writer.writeAttribute("keyboardChordLatch", keyboardChordLatch);
 
 	ParamManager* paramManager;
 
@@ -630,6 +631,10 @@ bool SoundInstrument::readTagFromFile(Deserializer& reader, char const* tagName)
 	}
 	if (!strcmp(tagName, "chordStrum")) {
 		chordSettings.strumMs = static_cast<uint16_t>(readClamped(0, kStrumMaxMs));
+		return true;
+	}
+	if (!strcmp(tagName, "keyboardChordLatch")) {
+		keyboardChordLatch = readClamped(0, 1) != 0;
 		return true;
 	}
 	if (!strcmp(tagName, "keyboardChordStrumMs")) {

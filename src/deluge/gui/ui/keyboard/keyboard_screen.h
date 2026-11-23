@@ -86,7 +86,19 @@ private:
 
 	/// The keyboard's CHORD / CHORD LIB pages of a synth track: their own screen (keyboard + chord + STRUM)
 	[[nodiscard]] bool onChordPage() const;
+	/// The setting SELECT turns on those pages: 0 = PATCH (the preset, as SELECT does elsewhere), 1 = STRUM, 2 = LATCH
+	uint8_t chordPageCell = 0;
 
+private:
+	// The CHORD / CHORD LIB pages' LATCH: the chord keeps playing once let go; the same chord pressed again stops it
+	NotesState chordLatched_{};
+	bool chordLatchHolding_ = false;  // a latched chord is playing
+	bool chordLatchStopping_ = false; // the pads pressed stopped the latched chord: silent until let go
+	uint8_t chordPadsHeldBefore_ = 0;
+	void applyChordLatch();
+	void releaseChordLatch();
+
+public:
 	void selectLayout(int8_t offset);
 	void enterScaleMode(int32_t selectedRootNote = kDefaultCalculateRootNote);
 	void exitScaleMode();
