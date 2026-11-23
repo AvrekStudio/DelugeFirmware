@@ -206,10 +206,45 @@ void KeyboardScreen::evaluateActiveNotes() {
 	lastNotesState = currentNotesState;
 	layout_list[getCurrentInstrumentClip()->keyboardState.currentLayout]->evaluatePads(pressedPads);
 	currentNotesState = layout_list[getCurrentInstrumentClip()->keyboardState.currentLayout]->getNotesState();
-	applyChordLatch();
+
+	const bool latchOn = onChordPage() && static_cast<SoundInstrument*>(getCurrentOutput())->keyboardChordLatch;
+	const bool chordRowMode =
+	    getCurrentInstrumentClip()->keyboardState.currentLayout == KeyboardLayoutType::KeyboardLayoutTypeChord
+	    && keyboard_layout_chord.mode == layout::ChordKeyboardMode::ROW;
+	if (!latchOn || !chordRowMode) {
+		applyChordLatch(currentNotesState);
+		return;
+	}
+
+	// CHORD ROW MODE: only the chord column (14) is latched; the notes of columns 1-13 play over it freely
+	PressedPad chordPads[kMaxNumKeyboardPadPresses];
+	for (int32_t i = 0; i < kMaxNumKeyboardPadPresses; i++) {
+		chordPads[i] = pressedPads[i];
+		if (chordPads[i].x != layout::kChordKeyboardColumns - 1) {
+			chordPads[i].active = false;
+			chordPads[i].dead = true;
+		}
+	}
+	auto* layout = layout_list[KeyboardLayoutType::KeyboardLayoutTypeChord];
+	layout->evaluatePads(chordPads);
+	NotesState chordNotes = layout->getNotesState();
+	layout->evaluatePads(pressedPads); // the real state last
+	const NotesState all = layout->getNotesState();
+
+	NotesState played = chordNotes;
+	applyChordLatch(played);
+	for (const NoteState& n : all) {
+		if (!chordNotes.noteEnabled(n.note)) {
+			int16_t mpe[3];
+			memcpy(mpe, n.mpeValues, sizeof(mpe));
+			played.enableNote(n.note, n.velocity, n.generatedNote, mpe);
+		}
+	}
+	currentNotesState = played;
 }
 
-void KeyboardScreen::applyChordLatch() {
+void KeyboardScreen::applyChordLatch(NotesState& notes) {
+	NotesState& currentNotesState = notes; // the notes the latch applies to
 	const bool latchOn = onChordPage() && static_cast<SoundInstrument*>(getCurrentOutput())->keyboardChordLatch;
 	const uint8_t held = currentNotesState.count;
 	const uint8_t heldBefore = chordPadsHeldBefore_;
@@ -247,7 +282,7 @@ void KeyboardScreen::releaseChordLatch() {
 	chordLatchStopping_ = false;
 	lastNotesState = currentNotesState;
 	currentNotesState = layout_list[getCurrentInstrumentClip()->keyboardState.currentLayout]->getNotesState();
-	chordPadsHeldBefore_ = currentNotesState.count;
+	chordPadsHeldBefore_ = 0;
 	updateActiveNotes();
 	requestRendering();
 }
@@ -495,7 +530,7 @@ void KeyboardScreen::renderOLED(deluge::hid::display::oled_canvas::Canvas& canva
 	// PATCH: the preset (SELECT changes it, as elsewhere)
 	char patch[8];
 	snprintf(patch, sizeof(patch), "%s", sound->name.isEmpty() ? "-" : sound->name.get());
-	chord_mode::drawSettingCell(canvas, 0, 3, "PATCH", patch, chordPageCell == 0);
+	chord_mode::drawSettingCell(canvas, 0, 4, "PATCH", patch, chordPageCell == 0);
 	char strum[8];
 	if (sound->keyboardChordStrumMs == 0) {
 		snprintf(strum, sizeof(strum), "OFF");
@@ -503,8 +538,13 @@ void KeyboardScreen::renderOLED(deluge::hid::display::oled_canvas::Canvas& canva
 	else {
 		snprintf(strum, sizeof(strum), "%d", static_cast<int>(sound->keyboardChordStrumMs));
 	}
-	chord_mode::drawSettingCell(canvas, 1, 3, "STRUM", strum, chordPageCell == 1);
-	chord_mode::drawSettingCell(canvas, 2, 3, "LATCH", sound->keyboardChordLatch ? "ON" : "OFF", chordPageCell == 2);
+	chord_mode::drawSettingCell(canvas, 1, 4, "STRUM", strum, chordPageCell == 1);
+	chord_mode::drawSettingCell(canvas, 2, 4, "LATCH", sound->keyboardChordLatch ? "ON" : "OFF", chordPageCell == 2);
+	// (the 4th column is left empty) - the button of the column selected is lit
+	indicator_leds::setLedState(indicator_leds::LED::SYNTH, chordPageCell == 0);
+	indicator_leds::setLedState(indicator_leds::LED::KIT, chordPageCell == 1);
+	indicator_leds::setLedState(indicator_leds::LED::MIDI, chordPageCell == 2);
+	indicator_leds::setLedState(indicator_leds::LED::CV, false);
 }
 
 void KeyboardScreen::noteOff(ModelStack& modelStack, Instrument& activeInstrument, bool clipIsActiveOnInstrument,

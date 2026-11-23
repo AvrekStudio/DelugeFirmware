@@ -95,7 +95,7 @@ private:
 	bool chordLatchHolding_ = false;  // a latched chord is playing
 	bool chordLatchStopping_ = false; // the pads pressed stopped the latched chord: silent until let go
 	uint8_t chordPadsHeldBefore_ = 0;
-	void applyChordLatch();
+	void applyChordLatch(NotesState& notes);
 	void releaseChordLatch();
 
 public:
