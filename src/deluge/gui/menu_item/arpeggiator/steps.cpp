@@ -23,9 +23,13 @@
 #include "hid/display/display.h"
 #include "hid/display/oled.h"
 #include "hid/led/pad_leds.h"
+#include "model/clip/clip.h"
+#include "model/model_stack.h"
+#include "model/song/song.h"
 #include "modulation/arpeggiator.h"
 #include "processing/sound/sound.h"
 #include <algorithm>
+#include <array>
 #include <cstdio>
 
 namespace deluge::gui::menu_item::arpeggiator {
@@ -63,6 +67,71 @@ int32_t playingStep() {
 	return arp != nullptr ? arp->playingStep() : -1;
 }
 } // namespace
+
+// MODE ----------------------------------------------------------------------------------------------------------------
+
+namespace {
+// index 1..5 of the value's size: UP DOWN BOTH RAND WALK
+constexpr std::array<ArpPreset, 6> kPresets = {ArpPreset::OFF,  ArpPreset::UP,     ArpPreset::DOWN,
+                                               ArpPreset::BOTH, ArpPreset::RANDOM, ArpPreset::WALK};
+constexpr std::array<const char*, 6> kPresetNames = {"OFF", "UP", "DOWN", "BOTH", "RAND", "WALK"};
+
+void formatMode(int32_t value, char* out, size_t size) {
+	snprintf(out, size, "%s", kPresetNames[std::clamp<int32_t>(value, 0, 5)]);
+}
+} // namespace
+
+void ModeLatch::readCurrentValue() {
+	ArpeggiatorSettings* s = settings();
+	int32_t i = 0;
+	for (int32_t k = 0; k < static_cast<int32_t>(kPresets.size()); k++) {
+		if (kPresets[k] == s->preset) {
+			i = k;
+		}
+	}
+	if (s->preset == ArpPreset::CUSTOM) {
+		i = 5; // CUSTOM is set aside for now: shown as WALK
+	}
+	setValue(i);
+}
+
+void ModeLatch::writeCurrentValue() {
+	ArpeggiatorSettings* s = settings();
+	const int32_t value = getValue();
+	const ArpPreset preset = kPresets[std::clamp<int32_t>(value, 0, 5)];
+	const bool switchingOnOrOff = (s->mode == ArpMode::OFF) != (preset == ArpPreset::OFF);
+	if (switchingOnOrOff && getCurrentClip()->isActiveOnOutput() && soundEditor.currentSound != nullptr) {
+		// every note off when the arp switches on / off
+		char modelStackMemory[MODEL_STACK_MAX_SIZE];
+		ModelStackWithThreeMainThings* modelStack = soundEditor.getCurrentModelStack(modelStackMemory);
+		ModelStackWithSoundFlags* modelStackWithSoundFlags = modelStack->addSoundFlags();
+		soundEditor.currentSound->allNotesOff(modelStackWithSoundFlags, soundEditor.currentSound->getArp());
+		soundEditor.currentSound->reassessRenderSkippingStatus(modelStackWithSoundFlags);
+	}
+	s->preset = preset;
+	s->updateSettingsFromCurrentPreset();
+	s->flagForceArpRestart = true;
+}
+
+void ModeLatch::renderInHorizontalMenu(const SlotPosition& slot) {
+	char buf[8];
+	formatMode(getValue(), buf, sizeof(buf));
+	deluge::hid::display::OLED::main.drawStringCentered(buf, slot.start_x, slot.start_y + kHorizontalMenuSlotYOffset,
+	                                                    kTextSpacingX, kTextSpacingY, slot.width);
+}
+
+void ModeLatch::drawValue() {
+	char buf[8];
+	formatMode(getValue(), buf, sizeof(buf));
+	display->setText(buf, true);
+}
+
+void ModeLatch::drawPixelsForOled() {
+	char buf[8];
+	formatMode(getValue(), buf, sizeof(buf));
+	deluge::hid::display::OLED::main.drawStringCentred(buf, 18 + OLED_MAIN_TOPMOST_PIXEL, kTextHugeSpacingX,
+	                                                   kTextHugeSizeY);
+}
 
 // OCTA ----------------------------------------------------------------------------------------------------------------
 
@@ -174,6 +243,32 @@ void ArpScreen::startOrStopPlayhead() {
 	else if (!editingSteps() && timerRunning_) {
 		uiTimerManager.unsetTimer(TimerName::UI_SPECIFIC);
 		timerRunning_ = false;
+	}
+}
+
+void ArpScreen::selectPressed() {
+	// SELECT never leaves the screen; on MODE it switches LATCH on / off
+	if (getCurrentItem() == items[0]) {
+		settings()->latch = !settings()->latch;
+		renderUIsForOled();
+	}
+}
+
+void ArpScreen::renderOLED() {
+	TwoRowMenu::renderOLED();
+	const ArpeggiatorSettings* s = settings();
+	if (s != nullptr && s->latch && s->preset != ArpPreset::OFF) {
+		// LATCH on: a black L at the top of the white strip
+		auto& image = deluge::hid::display::OLED::main;
+		constexpr int32_t x = 3;
+		constexpr int32_t y = OLED_MAIN_TOPMOST_PIXEL + 2;
+		for (int32_t i = 0; i < 5; i++) {
+			image.clearPixel(x, y + i);
+		}
+		for (int32_t i = 1; i < 4; i++) {
+			image.clearPixel(x + i, y + 4);
+		}
+		deluge::hid::display::OLED::markChanged();
 	}
 }
 

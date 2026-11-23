@@ -19,6 +19,7 @@
 
 #include "util/chord_mode_calc.h"
 #include <array>
+#include <bitset>
 
 #include "definitions_cxx.hpp"
 #include "model/instrument/melodic_instrument.h"
@@ -123,4 +124,13 @@ private:
 	                 uint32_t samplesLate);
 	bool chordNoteOff(ModelStackWithThreeMainThings* modelStack, int32_t key);
 	void renderStrum(ModelStackWithThreeMainThings* modelStack, int32_t numSamples);
+
+	// ARP LATCH: keys held down, and keys let go whose notes keep playing
+	std::bitset<128> down_;
+	std::bitset<128> latched_;
+	bool latchActive();
+	void releaseLatched(ModelStackWithThreeMainThings* modelStack);
+	void playKey(ModelStackWithThreeMainThings* modelStack, bool isOn, int32_t noteCode, int16_t const* mpeValues,
+	             int32_t fromMIDIChannel, uint8_t velocity, uint32_t sampleSyncLength, int32_t ticksLate,
+	             uint32_t samplesLate);
 };

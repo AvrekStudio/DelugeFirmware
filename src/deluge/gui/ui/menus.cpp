@@ -422,6 +422,7 @@ PLACE_SDRAM_BSS Submenu arpMenu{
 };
 
 // Arp: everything on one two-row screen (synth tracks); RHYT selected = the grid edits the step sequence
+PLACE_SDRAM_BSS arpeggiator::ModeLatch arpModeLatchMenu{STRING_FOR_MODE};
 PLACE_SDRAM_BSS arpeggiator::OctaveSpan arpOctaveSpanMenu{STRING_FOR_NUMBER_OF_OCTAVES,
                                                           STRING_FOR_ARP_OCTAVES_MENU_TITLE};
 PLACE_SDRAM_BSS arpeggiator::StepCount arpStepCountMenu{STRING_FOR_SEQUENCE_LENGTH,
@@ -429,7 +430,7 @@ PLACE_SDRAM_BSS arpeggiator::StepCount arpStepCountMenu{STRING_FOR_SEQUENCE_LENG
 PLACE_SDRAM_BSS arpeggiator::StepsCell arpStepsCell{STRING_FOR_RHYTHM, STRING_FOR_ARP_RHYTHM_MENU_TITLE};
 PLACE_SDRAM_BSS arpeggiator::ArpScreen arpTwoRowMenu{STRING_FOR_ARPEGGIATOR,
                                                      STRING_FOR_ARP_SHORT_TITLE,
-                                                     {&arpPresetModeMenu, &arpGateMenu, &arpSyncMenu, &arpRateMenu,
+                                                     {&arpModeLatchMenu, &arpGateMenu, &arpSyncMenu, &arpRateMenu,
                                                       &arpOctaveSpanMenu, &arpStepRepeatMenu, &arpStepCountMenu,
                                                       &arpStepsCell},
                                                      arpStepsCell};

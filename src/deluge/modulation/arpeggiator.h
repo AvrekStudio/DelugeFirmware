@@ -84,6 +84,8 @@ public:
 	uint8_t numOctaves{2};
 	// The octaves go below the notes held (OCTA negative) instead of above them
 	bool octavesBelow{false};
+	// LATCH: the notes keep playing once let go, until new ones are played (synth ARP screen: MODE "UP." etc.)
+	bool latch{false};
 
 	// Step sequence: LEN steps, each ON / OFF and moving its note by some semitones
 	deluge::modulation::ArpSteps steps;

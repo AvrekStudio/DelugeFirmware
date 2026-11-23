@@ -18,6 +18,7 @@
 #include "processing/sound/sound_instrument.h"
 #include "definitions_cxx.hpp"
 #include "dsp/stereo_sample.h"
+#include "extern.h"
 #include "gui/views/view.h"
 #include "model/clip/instrument_clip.h"
 #include "model/model_stack.h"
@@ -110,6 +111,9 @@ void SoundInstrument::renderOutput(ModelStack* modelStack, std::span<StereoSampl
 	        ->addOtherTwoThingsButNoNoteRow(this, getParamManager(modelStack->song));
 
 	renderStrum(modelStackWithThreeMainThings, static_cast<int32_t>(output.size())); // CHORD MODE STRUM
+	if (latched_.any() && !latchActive()) {
+		releaseLatched(modelStackWithThreeMainThings); // LATCH switched off (or the arp): the latched notes end
+	}
 
 	if (skippingRendering) {
 		compressor.reset();
@@ -387,6 +391,44 @@ void SoundInstrument::sendNote(ModelStackWithThreeMainThings* modelStack, bool i
 		return;
 	}
 
+	// ARP LATCH: a key let go keeps playing, until a key is played with none held
+	if (isOn) {
+		if (latched_.any() && down_.none()) {
+			releaseLatched(modelStack); // a new set of notes replaces the latched one
+		}
+		else if (latched_[noteCode]) {
+			latched_[noteCode] = false; // the same key again: its latched note ends, it starts anew
+			playKey(modelStack, false, noteCode, mpeValues, fromMIDIChannel, velocity, 0, 0, 0);
+		}
+		down_[noteCode] = true;
+	}
+	else {
+		down_[noteCode] = false;
+		if (latchActive()) {
+			latched_[noteCode] = true;
+			return;
+		}
+	}
+	playKey(modelStack, isOn, noteCode, mpeValues, fromMIDIChannel, velocity, sampleSyncLength, ticksLate, samplesLate);
+}
+
+bool SoundInstrument::latchActive() {
+	ArpeggiatorSettings* settings = getArpSettings();
+	return settings != nullptr && settings->latch && !ArpeggiatorBase::arpIsOff(settings);
+}
+
+void SoundInstrument::releaseLatched(ModelStackWithThreeMainThings* modelStack) {
+	for (int32_t note = 0; note < 128; note++) {
+		if (latched_[note]) {
+			latched_[note] = false;
+			playKey(modelStack, false, note, zeroMPEValues, MIDI_CHANNEL_NONE, 0, 0, 0, 0);
+		}
+	}
+}
+
+void SoundInstrument::playKey(ModelStackWithThreeMainThings* modelStack, bool isOn, int32_t noteCode,
+                              int16_t const* mpeValues, int32_t fromMIDIChannel, uint8_t velocity,
+                              uint32_t sampleSyncLength, int32_t ticksLate, uint32_t samplesLate) {
 	// CHORD MODE comes before the arpeggiator: each note of the chord goes into it as if held
 	if (isOn) {
 		if (chordSettings.mode != deluge::chordmode::Mode::OFF) {

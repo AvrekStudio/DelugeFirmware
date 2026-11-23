@@ -1653,6 +1653,7 @@ void ArpeggiatorSettings::cloneFrom(ArpeggiatorSettings const* other) {
 	chordTypeIndex = other->chordTypeIndex;
 	numOctaves = other->numOctaves;
 	octavesBelow = other->octavesBelow;
+	latch = other->latch;
 	steps = other->steps;
 	numStepRepeats = other->numStepRepeats;
 	includeInKitArp = other->includeInKitArp;
@@ -1683,6 +1684,9 @@ bool ArpeggiatorSettings::readCommonTagsFromFile(Deserializer& reader, char cons
                                                  Song* songToConvertSyncLevel) {
 	if (!strcmp(tagName, "numOctaves")) {
 		numOctaves = reader.readTagOrAttributeValueInt();
+	}
+	else if (!strcmp(tagName, "latch")) {
+		latch = reader.readTagOrAttributeValueInt();
 	}
 	else if (!strcmp(tagName, "octavesBelow")) {
 		octavesBelow = reader.readTagOrAttributeValueInt();
@@ -1917,6 +1921,7 @@ void ArpeggiatorSettings::writeCommonParamsToFile(Serializer& writer, Song* song
 	writer.writeAttribute("mpeVelocity", (char*)arpMpeModSourceToString(mpeVelocity));
 	writer.writeAttribute("stepRepeat", numStepRepeats);
 	writer.writeAttribute("octavesBelow", octavesBelow);
+	writer.writeAttribute("latch", latch);
 	writer.writeAttribute("stepsEnabled", steps.enabled);
 	writer.writeAttribute("stepsLen", steps.len);
 	{

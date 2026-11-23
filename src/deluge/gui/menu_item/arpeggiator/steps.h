@@ -27,6 +27,21 @@
 
 namespace deluge::gui::menu_item::arpeggiator {
 
+/// MODE: OFF UP DOWN BOTH RAND WALK (SELECT on it switches LATCH on / off: the screen's ARP strip shows an L)
+class ModeLatch final : public Integer {
+public:
+	using Integer::Integer;
+	void readCurrentValue() override;
+	void writeCurrentValue() override;
+	[[nodiscard]] int32_t getMinValue() const override { return 0; }
+	[[nodiscard]] int32_t getMaxValue() const override { return 5; }
+	[[nodiscard]] bool showNotification() const override { return false; }
+	void renderInHorizontalMenu(const SlotPosition& slot) override;
+	void drawValue() override;
+	void drawPixelsForOled() override;
+	void getColumnLabel(StringBuf& label) override { label.append("MODE"); }
+};
+
 /// OCTA, -5 to +5: octaves added above (+) or below (-) the notes held
 class OctaveSpan final : public Integer {
 public:
@@ -72,6 +87,9 @@ public:
 	void endSession() override;
 	ActionResult timerCallback() override;
 	void selectEncoderAction(int32_t offset) override;
+	void renderOLED() override;
+	/// SELECT (or LOAD): never leaves the screen; on MODE it switches LATCH on / off
+	void selectPressed();
 	ActionResult buttonAction(hid::Button b, bool on, bool inCardRoutine) override;
 
 	/// The grid is the step editor (RHYT selected, over a clip's grid)

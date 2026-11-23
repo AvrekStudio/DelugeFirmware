@@ -643,6 +643,12 @@ ActionResult SoundEditor::buttonAction(deluge::hid::Button b, bool on, bool inCa
 					return ActionResult::REMIND_ME_OUTSIDE_CARD_ROUTINE;
 				}
 
+				// The ARP screen keeps SELECT for itself (LATCH on MODE)
+				if (auto* arpScreen = menu_item::arpeggiator::openArpScreen(); arpScreen != nullptr) {
+					arpScreen->selectPressed();
+					return ActionResult::DEALT_WITH;
+				}
+
 				MenuItem* currentMenuItem = getCurrentMenuItem();
 				MenuItem* newItem = currentMenuItem->selectButtonPress();
 				if (newItem) {
