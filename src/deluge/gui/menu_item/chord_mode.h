@@ -107,6 +107,9 @@ void drawChordNotes(deluge::hid::display::oled_canvas::Canvas& image, const int1
                     bool rootInHighOctave);
 /// The chord's name on the right of the keyboard: root, then quality
 void drawChordName(deluge::hid::display::oled_canvas::Canvas& image, int32_t root, const char* quality);
+/// A setting with no value to show: a label, and two arrowheads inviting to turn either way
+void drawArrowsCell(deluge::hid::display::oled_canvas::Canvas& image, int32_t index, int32_t count, const char* label,
+                    bool selected);
 /// An empty place for a setting: a dotted frame
 void drawEmptyCell(deluge::hid::display::oled_canvas::Canvas& image, int32_t index, int32_t count);
 /// A setting under the keyboard, `index` of `count` columns: label above, value below, framed when selected

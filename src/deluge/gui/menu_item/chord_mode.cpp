@@ -335,6 +335,25 @@ void drawEmptyCell(deluge::hid::display::oled_canvas::Canvas& image, int32_t ind
 	}
 }
 
+void drawArrowsCell(deluge::hid::display::oled_canvas::Canvas& image, int32_t index, int32_t count, const char* label,
+                    bool selected) {
+	const int32_t w = (OLED_MAIN_WIDTH_PIXELS - kColX) / count;
+	const int32_t x = kColX + index * w;
+	image.drawStringCentered(label, x, kLabelY, kTextSmallSpacingX, kTextSmallSizeY, w);
+	// two filled arrowheads, left and right: turn either way
+	const int32_t cx = x + (w - 1) / 2;
+	const int32_t cy = kValueY + 3;
+	for (int32_t i = 0; i < 4; i++) {
+		for (int32_t dy = -i; dy <= i; dy++) {
+			image.drawPixel(cx - 6 + i, cy + dy); // <
+			image.drawPixel(cx + 6 - i, cy + dy); // >
+		}
+	}
+	if (selected) {
+		image.invertAreaRounded(x, w - 1, kColTop, OLED_MAIN_HEIGHT_PIXELS - 1);
+	}
+}
+
 void drawSettingCell(deluge::hid::display::oled_canvas::Canvas& image, int32_t index, int32_t count, const char* label,
                      const char* value, bool selected) {
 	const int32_t w = (OLED_MAIN_WIDTH_PIXELS - kColX) / count;

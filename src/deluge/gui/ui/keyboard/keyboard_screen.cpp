@@ -527,10 +527,8 @@ void KeyboardScreen::renderOLED(deluge::hid::display::oled_canvas::Canvas& canva
 		chord_mode::drawChordName(canvas, chord.root, chord.quality);
 	}
 	auto* sound = static_cast<SoundInstrument*>(getCurrentOutput());
-	// PATCH: the preset (SELECT changes it, as elsewhere)
-	char patch[8];
-	snprintf(patch, sizeof(patch), "%s", sound->name.isEmpty() ? "-" : sound->name.get());
-	chord_mode::drawSettingCell(canvas, 0, 4, "PATCH", patch, chordPageCell == 0);
+	// PRESET: SELECT changes it, as elsewhere; arrows invite turning either way (its name pops up)
+	chord_mode::drawArrowsCell(canvas, 0, 4, "PRESET", chordPageCell == 0);
 	char strum[8];
 	if (sound->keyboardChordStrumMs == 0) {
 		snprintf(strum, sizeof(strum), "OFF");
@@ -583,7 +581,7 @@ ActionResult KeyboardScreen::buttonAction(deluge::hid::Button b, bool on, bool i
 		return ActionResult::REMIND_ME_OUTSIDE_CARD_ROUTINE;
 	}
 
-	// The CHORD / CHORD LIB pages: SYNTH = PATCH, KIT = STRUM, MIDI = LATCH (CV does nothing there)
+	// The CHORD / CHORD LIB pages: SYNTH = PRESET, KIT = STRUM, MIDI = LATCH (CV does nothing there)
 	if (onChordPage() && (b == SYNTH || b == KIT || b == MIDI || b == CV) && !Buttons::isShiftButtonPressed()
 	    && (currentUIMode == UI_MODE_NONE || currentUIMode == UI_MODE_AUDITIONING)) {
 		if (on && b != CV) {
@@ -955,14 +953,22 @@ void KeyboardScreen::selectEncoderAction(int8_t offset) {
 		requestRendering();
 	}
 	else {
-		InstrumentClipMinder::selectEncoderAction(offset); // (PATCH on the CHORD / CHORD LIB pages)
+		const bool presetOnChordPage = onChordPage();
+		if (presetOnChordPage) {
+			releaseChordLatch(); // a latched chord would hold the preset: it ends first (LATCH stays ON)
+		}
+		InstrumentClipMinder::selectEncoderAction(offset); // (PRESET on the CHORD / CHORD LIB pages)
 		// Ensure scroll values are calculated in bounds
 		layout_list[getCurrentInstrumentClip()->keyboardState.currentLayout]->handleHorizontalEncoder(
 		    0, false, pressedPads, xEncoderActive);
 		layout_list[getCurrentInstrumentClip()->keyboardState.currentLayout]->precalculate();
 		requestRendering();
-		if (onChordPage() && display->haveOLED()) {
-			renderUIsForOled(); // PATCH shows the new preset
+		if (presetOnChordPage && onChordPage() && display->haveOLED()) {
+			renderUIsForOled();
+			Output* output = getCurrentOutput();
+			if (output != nullptr && !output->name.isEmpty()) {
+				display->popupTextTemporary(output->name.get()); // the preset's name
+			}
 		}
 	}
 }
