@@ -429,6 +429,7 @@ void SoundInstrument::chordNoteOn(ModelStackWithThreeMainThings* modelStack, int
 	}
 	slot->key = static_cast<int16_t>(key);
 	slot->chord = chord;
+	slot->started = 0;
 	chordLastKey = static_cast<int16_t>(key);
 	chordKeysHeld++;
 	chordPlayCounter++;
@@ -438,8 +439,8 @@ void SoundInstrument::chordNoteOn(ModelStackWithThreeMainThings* modelStack, int
 	const int32_t strumSamples = static_cast<int32_t>(chordSettings.strumMs) * kSampleRate / 1000;
 	for (int32_t i = 0; i < chord.count; i++) {
 		if (i == 0 || !strum) {
-			noteOn(modelStack, &arpeggiator, chord.notes[i], mpeValues, sampleSyncLength, ticksLate, samplesLate,
-			       velocity, fromMIDIChannel);
+			chordStart(modelStack, *slot, i, mpeValues, fromMIDIChannel, velocity, sampleSyncLength, ticksLate,
+			           samplesLate);
 			continue;
 		}
 		for (StrumPending& p : strumPending_) {
@@ -457,6 +458,18 @@ void SoundInstrument::chordNoteOn(ModelStackWithThreeMainThings* modelStack, int
 	}
 }
 
+void SoundInstrument::chordStart(ModelStackWithThreeMainThings* modelStack, ChordHeld& held, int32_t index,
+                                 int16_t const* mpeValues, int32_t fromMIDIChannel, uint8_t velocity,
+                                 uint32_t sampleSyncLength, int32_t ticksLate, uint32_t samplesLate) {
+	const int32_t note = held.chord.notes[index];
+	held.started |= static_cast<uint8_t>(1u << index);
+	if (chordPitchCount_[note]++ > 0) {
+		return; // another held chord sounds it already
+	}
+	noteOn(modelStack, &arpeggiator, note, mpeValues, sampleSyncLength, ticksLate, samplesLate, velocity,
+	       fromMIDIChannel);
+}
+
 bool SoundInstrument::chordNoteOff(ModelStackWithThreeMainThings* modelStack, int32_t key) {
 	for (ChordHeld& h : chordHeld_) {
 		if (h.key != key) {
@@ -469,9 +482,19 @@ bool SoundInstrument::chordNoteOff(ModelStackWithThreeMainThings* modelStack, in
 			}
 		}
 		for (int32_t i = 0; i < h.chord.count; i++) {
-			noteOff(modelStack, &arpeggiator, h.chord.notes[i]);
+			if (!((h.started >> i) & 1)) {
+				continue;
+			}
+			uint8_t& count = chordPitchCount_[h.chord.notes[i]];
+			if (count > 0) {
+				count--;
+			}
+			if (count == 0) {
+				noteOff(modelStack, &arpeggiator, h.chord.notes[i]); // no other held chord has it
+			}
 		}
 		h.key = -1;
+		h.started = 0;
 		if (chordKeysHeld > 0) {
 			chordKeysHeld--;
 		}
@@ -491,11 +514,17 @@ void SoundInstrument::renderStrum(ModelStackWithThreeMainThings* modelStack, int
 			const int16_t key = p.key;
 			p.key = -1;
 			// started late: it must still belong to a held chord
-			for (const ChordHeld& h : chordHeld_) {
-				if (h.key == key) {
-					noteOn(modelStack, &arpeggiator, p.note, p.mpe.data(), 0, 0, 0, p.velocity, MIDI_CHANNEL_NONE);
-					break;
+			for (ChordHeld& h : chordHeld_) {
+				if (h.key != key) {
+					continue;
 				}
+				for (int32_t i = 0; i < h.chord.count; i++) {
+					if (h.chord.notes[i] == p.note && !((h.started >> i) & 1)) {
+						chordStart(modelStack, h, i, p.mpe.data(), MIDI_CHANNEL_NONE, p.velocity, 0, 0, 0);
+						break;
+					}
+				}
+				break;
 			}
 		}
 	}

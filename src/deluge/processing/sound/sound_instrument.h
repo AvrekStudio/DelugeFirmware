@@ -100,8 +100,15 @@ private:
 	struct ChordHeld {
 		int16_t key = -1;
 		deluge::chordmode::Chord chord;
+		uint8_t started = 0; // a bit per note of the chord that has started (strum notes start late)
 	};
 	std::array<ChordHeld, 16> chordHeld_{};
+	// How many held chords hold each pitch: two chords sharing a note must not end it when only one is let go
+	// (the arp keeps one copy of each pitch, and so does a voice)
+	std::array<uint8_t, 128> chordPitchCount_{};
+	void chordStart(ModelStackWithThreeMainThings* modelStack, ChordHeld& held, int32_t index, int16_t const* mpeValues,
+	                int32_t fromMIDIChannel, uint8_t velocity, uint32_t sampleSyncLength, int32_t ticksLate,
+	                uint32_t samplesLate);
 	// CHORD MODE STRUM (arp off): notes still to start
 	struct StrumPending {
 		int16_t key = -1;
