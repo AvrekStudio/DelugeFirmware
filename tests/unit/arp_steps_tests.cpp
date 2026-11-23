@@ -87,3 +87,18 @@ TEST(ArpStepsTests, octavesGoBelowTheNoteWhenNegative) {
 	CHECK_EQUAL(-2, OctaveSpan::octaveOf(0, 3, true));
 	CHECK_EQUAL(0, OctaveSpan::octaveOf(2, 3, true));
 }
+
+TEST(ArpStepsTests, rhythmOffPlaysEveryNoteUnmoved) {
+	ArpSteps steps;
+	steps.toggle(1);
+	steps.setOffset(1, 5);
+	steps.setOffset(2, -3);
+	CHECK_FALSE(steps.plays(1));
+	CHECK_EQUAL(-3, steps.shift(2));
+	steps.enabled = false;
+	CHECK(steps.plays(1));
+	CHECK_EQUAL(0, steps.shift(1));
+	CHECK_EQUAL(0, steps.shift(2));
+	CHECK_FALSE(steps.isOn(1)); // kept
+	CHECK_EQUAL(5, steps.offset[1]);
+}

@@ -1358,7 +1358,7 @@ void Arpeggiator::switchNoteOn(ArpeggiatorSettings* settings, ArpReturnInstructi
 		arpNote = (ArpNote*)notes.getElementAddress(whichNoteCurrentlyOnPostArp);
 	}
 	// An OFF step is a silence: the arp has moved on to its next note all the same
-	const bool stepIsOn = settings->steps.isOn(currentStep);
+	const bool stepIsOn = settings->steps.plays(currentStep);
 
 	if (shouldCarryOnRhythmNote && shouldPlayNote && stepIsOn) {
 		// Set Gate as active
@@ -1416,7 +1416,7 @@ void Arpeggiator::switchNoteOn(ArpeggiatorSettings* settings, ArpReturnInstructi
 			note = arpNote->inputCharacteristics[util::to_underlying(MIDICharacteristic::NOTE)] + diff;
 		}
 		// The step moves its note
-		note += settings->steps.offset[currentStep];
+		note += settings->steps.shift(currentStep);
 		// And fix it if out of bounds
 		if (note < 0) {
 			note = 0;
@@ -1687,6 +1687,9 @@ bool ArpeggiatorSettings::readCommonTagsFromFile(Deserializer& reader, char cons
 	else if (!strcmp(tagName, "octavesBelow")) {
 		octavesBelow = reader.readTagOrAttributeValueInt();
 	}
+	else if (!strcmp(tagName, "stepsEnabled")) {
+		steps.enabled = reader.readTagOrAttributeValueInt();
+	}
 	else if (!strcmp(tagName, "stepsLen")) {
 		steps.setLen(reader.readTagOrAttributeValueInt());
 	}
@@ -1914,6 +1917,7 @@ void ArpeggiatorSettings::writeCommonParamsToFile(Serializer& writer, Song* song
 	writer.writeAttribute("mpeVelocity", (char*)arpMpeModSourceToString(mpeVelocity));
 	writer.writeAttribute("stepRepeat", numStepRepeats);
 	writer.writeAttribute("octavesBelow", octavesBelow);
+	writer.writeAttribute("stepsEnabled", steps.enabled);
 	writer.writeAttribute("stepsLen", steps.len);
 	{
 		std::array<uint8_t, deluge::modulation::ArpSteps::kNumBytes> bytes{};

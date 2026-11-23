@@ -78,6 +78,8 @@ public:
 	bool stepEncoderAction(int32_t offset);
 	void renderPads(uint32_t whichRows, RGB image[][kDisplayWidth + kSideBarWidth],
 	                uint8_t occupancyMask[][kDisplayWidth + kSideBarWidth]);
+	void renderSidebar(uint32_t whichRows, RGB image[][kDisplayWidth + kSideBarWidth],
+	                   uint8_t occupancyMask[][kDisplayWidth + kSideBarWidth]);
 
 protected:
 	void focusChanged() override;
@@ -89,6 +91,7 @@ private:
 	int32_t drawnStep_ = -1; // the step playing when the grid was last drawn
 	bool timerRunning_ = false;
 	void startOrStopPlayhead();
+	bool sidebarPadAction(int32_t x, int32_t y, bool on);
 	void showSteps() const;
 };
 

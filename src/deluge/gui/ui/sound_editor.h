@@ -94,6 +94,8 @@ public:
 
 	bool should_render_shortcut_overlay();
 	bool in_sound_editor();
+	bool renderSidebar(uint32_t whichRows, RGB image[][kDisplayWidth + kSideBarWidth],
+	                   uint8_t occupancyMask[][kDisplayWidth + kSideBarWidth]) override;
 	bool renderMainPads(uint32_t whichRows, RGB image[kDisplayHeight][kDisplayWidth + kSideBarWidth],
 	                    uint8_t occupancyMask[kDisplayHeight][kDisplayWidth + kSideBarWidth],
 	                    bool drawUndefinedArea = false) override;

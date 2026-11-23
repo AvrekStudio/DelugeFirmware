@@ -22,6 +22,7 @@
 #include "gui/views/instrument_clip_view.h"
 #include "hid/display/display.h"
 #include "hid/display/oled.h"
+#include "hid/led/pad_leds.h"
 #include "modulation/arpeggiator.h"
 #include "processing/sound/sound.h"
 #include <algorithm>
@@ -46,6 +47,11 @@ const RGB kStepOn{240, 240, 240};     // row 8: ON
 const RGB kStepOff{220, 30, 30};      // row 8: OFF
 const RGB kStepPlaying{40, 200, 255}; // row 8: the step playing
 const RGB kOutOfView{60, 35, 10};     // a step's note above / below the rows shown, on the edge row
+const RGB kLenButton{255, 120, 0};    // MUTE / AUDITION row 8: LEN - 1 / LEN + 1
+const RGB kRhythmOn{40, 120, 255};    // AUDITION row 1: RHYTHM ON
+const RGB kRhythmOff{230, 20, 20};    // AUDITION row 1: RHYTHM OFF
+constexpr int32_t kMuteCol = kDisplayWidth;
+constexpr int32_t kAuditionCol = kDisplayWidth + 1;
 
 ArpeggiatorSettings* settings() {
 	return soundEditor.currentArpSettings;
@@ -85,7 +91,7 @@ void StepCount::readCurrentValue() {
 void StepCount::writeCurrentValue() {
 	settings()->steps.setLen(getValue());
 	if (openArpScreen() != nullptr) {
-		uiNeedsRendering(&soundEditor, 0xFFFFFFFF, 0); // the steps beyond LEN go dark on the grid
+		uiNeedsRendering(&soundEditor, 0xFFFFFFFF, 0xFFFFFFFF); // the steps beyond LEN go dark on the grid
 	}
 }
 
@@ -96,6 +102,11 @@ void StepsCell::renderInHorizontalMenu(const SlotPosition& slot) {
 	using deluge::hid::display::OLED;
 	auto& image = OLED::main;
 	const ArpSteps& steps = settings()->steps;
+	if (!steps.enabled) {
+		// RHYTHM OFF: the steps are ignored
+		return image.drawStringCentered("OFF", slot.start_x, slot.start_y + kHorizontalMenuSlotYOffset, kTextSpacingX,
+		                                kTextSpacingY, slot.width);
+	}
 	constexpr int32_t kPitch = 3;
 	const int32_t x0 = slot.start_x + (slot.width - (8 * kPitch - 1)) / 2;
 	for (int32_t s = 0; s < steps.len; s++) {
@@ -136,7 +147,8 @@ void ArpScreen::endSession() {
 	}
 	heldStep_ = -1;
 	openScreen = nullptr;
-	uiNeedsRendering(getRootUI(), 0xFFFFFFFF, 0); // the grid goes back to the clip
+	uiNeedsRendering(getRootUI(), 0xFFFFFFFF, 0xFFFFFFFF); // the grid goes back to the clip
+	PadLEDs::reassessGreyout();
 }
 
 void ArpScreen::focusChanged() {
@@ -150,7 +162,8 @@ bool ArpScreen::editingSteps() const {
 }
 
 void ArpScreen::showSteps() const {
-	uiNeedsRendering(&soundEditor, 0xFFFFFFFF, 0);
+	PadLEDs::reassessGreyout(); // the step editor in full colours
+	uiNeedsRendering(&soundEditor, 0xFFFFFFFF, 0xFFFFFFFF);
 }
 
 void ArpScreen::startOrStopPlayhead() {
@@ -177,10 +190,13 @@ ActionResult ArpScreen::timerCallback() {
 }
 
 bool ArpScreen::padAction(int32_t x, int32_t y, bool on) {
-	if (!editingSteps() || x >= kDisplayWidth) {
+	if (!editingSteps()) {
 		return false;
 	}
 	ArpSteps& steps = settings()->steps;
+	if (x >= kDisplayWidth) {
+		return sidebarPadAction(x, y, on);
+	}
 	if (!on) {
 		if (x == heldStep_) {
 			heldStep_ = -1;
@@ -203,8 +219,34 @@ bool ArpScreen::padAction(int32_t x, int32_t y, bool on) {
 	}
 	display->displayPopup(text);
 	soundEditor.markInstrumentAsEdited();
-	uiNeedsRendering(&soundEditor, 0xFFFFFFFF, 0);
+	uiNeedsRendering(&soundEditor, 0xFFFFFFFF, 0xFFFFFFFF);
 	renderUIsForOled(); // the RHYT cell shows the steps
+	return true;
+}
+
+bool ArpScreen::sidebarPadAction(int32_t x, int32_t y, bool on) {
+	if (!on) {
+		return true;
+	}
+	ArpSteps& steps = settings()->steps;
+	const int32_t row = kDisplayHeight - 1 - y;
+	char text[20];
+	if (row == kOnOffRow) {
+		// MUTE: LEN - 1, AUDITION: LEN + 1
+		steps.setLen(steps.len + (x == kAuditionCol ? 1 : -1));
+		snprintf(text, sizeof(text), "LEN %d", static_cast<int>(steps.len));
+	}
+	else if (row == 0 && x == kAuditionCol) {
+		steps.enabled = !steps.enabled;
+		snprintf(text, sizeof(text), "RHYTHM %s", steps.enabled ? "ON" : "OFF");
+	}
+	else {
+		return true; // unused
+	}
+	display->displayPopup(text);
+	soundEditor.markInstrumentAsEdited();
+	uiNeedsRendering(&soundEditor, 0xFFFFFFFF, 0xFFFFFFFF);
+	renderUIsForOled(); // LEN / RHYT cells
 	return true;
 }
 
@@ -234,7 +276,7 @@ bool ArpScreen::stepEncoderAction(int32_t offset) {
 		soundEditor.markInstrumentAsEdited();
 	}
 	display->displayPopup(text);
-	uiNeedsRendering(&soundEditor, 0xFFFFFFFF, 0);
+	uiNeedsRendering(&soundEditor, 0xFFFFFFFF, 0xFFFFFFFF);
 	return true;
 }
 
@@ -248,7 +290,7 @@ void ArpScreen::renderPads(uint32_t whichRows, RGB image[][kDisplayWidth + kSide
 			continue;
 		}
 		const int32_t row = kDisplayHeight - 1 - y;
-		for (int32_t x = 0; x < kDisplayWidth + kSideBarWidth; x++) {
+		for (int32_t x = 0; x < kDisplayWidth; x++) {
 			RGB colour = colours::black;
 			if (x < steps.len && x < ArpSteps::kMaxSteps) {
 				const int32_t noteRow = kZeroRow - (steps.offset[x] - view_);
@@ -270,6 +312,28 @@ void ArpScreen::renderPads(uint32_t whichRows, RGB image[][kDisplayWidth + kSide
 			if (occupancyMask != nullptr) {
 				occupancyMask[y][x] = colour == colours::black ? 0 : 64;
 			}
+		}
+	}
+}
+
+void ArpScreen::renderSidebar(uint32_t whichRows, RGB image[][kDisplayWidth + kSideBarWidth],
+                              uint8_t occupancyMask[][kDisplayWidth + kSideBarWidth]) {
+	// MUTE row 8: LEN - 1, AUDITION row 8: LEN + 1, AUDITION row 1: RHYTHM ON / OFF; the rest unlit
+	const ArpSteps& steps = settings()->steps;
+	for (int32_t y = 0; y < kDisplayHeight; y++) {
+		if (!(whichRows & (1 << y))) {
+			continue;
+		}
+		const int32_t row = kDisplayHeight - 1 - y;
+		const RGB mute = row == kOnOffRow ? kLenButton : colours::black;
+		const RGB audition = row == kOnOffRow ? kLenButton
+		                     : row == 0       ? (steps.enabled ? kRhythmOn : kRhythmOff)
+		                                      : colours::black;
+		image[y][kMuteCol] = mute;
+		image[y][kAuditionCol] = audition;
+		if (occupancyMask != nullptr) {
+			occupancyMask[y][kMuteCol] = mute == colours::black ? 0 : 64;
+			occupancyMask[y][kAuditionCol] = audition == colours::black ? 0 : 64;
 		}
 	}
 }

@@ -30,11 +30,17 @@ struct ArpSteps {
 	static constexpr int32_t kMaxOffset = 24;
 	static constexpr int32_t kNumBytes = 2 + kMaxSteps; // on bits + offsets
 
+	bool enabled = true; // RHYTHM OFF: every arp note plays, unmoved (the steps are kept)
 	uint8_t len = kMaxSteps;
 	uint16_t on = 0xFFFF;
 	std::array<int8_t, kMaxSteps> offset{};
 
 	[[nodiscard]] bool isOn(int32_t step) const { return step >= 0 && step < kMaxSteps && ((on >> step) & 1); }
+	/// Whether the arp plays its note on this step, and how many semitones the step moves it (RHYTHM OFF: all, 0)
+	[[nodiscard]] bool plays(int32_t step) const { return !enabled || isOn(step); }
+	[[nodiscard]] int32_t shift(int32_t step) const {
+		return enabled && step >= 0 && step < kMaxSteps ? offset[step] : 0;
+	}
 	void toggle(int32_t step) {
 		if (step >= 0 && step < kMaxSteps) {
 			on ^= static_cast<uint16_t>(1u << step);

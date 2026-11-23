@@ -246,6 +246,18 @@ static bool isOtherModSourcePadPressed(int32_t x, int32_t y) {
 	return false;
 }
 
+bool SoundEditor::renderSidebar(uint32_t whichRows, RGB image[][kDisplayWidth + kSideBarWidth],
+                                uint8_t occupancyMask[][kDisplayWidth + kSideBarWidth]) {
+	// The ARP's step editor: MUTE / AUDITION are its LEN - / + and RHYTHM ON / OFF
+	if (auto* arpScreen = menu_item::arpeggiator::openArpScreen(); arpScreen != nullptr && arpScreen->editingSteps()) {
+		if (image != nullptr) {
+			arpScreen->renderSidebar(whichRows, image, occupancyMask);
+		}
+		return true;
+	}
+	return false;
+}
+
 bool SoundEditor::renderMainPads(uint32_t whichRows, RGB image[][kDisplayWidth + kSideBarWidth],
                                  uint8_t occupancyMask[][kDisplayWidth + kSideBarWidth], bool drawUndefinedArea) {
 
@@ -470,6 +482,11 @@ void SoundEditor::setCurrentSource(int32_t sourceIndex) {
 }
 
 bool SoundEditor::getGreyoutColsAndRows(uint32_t* cols, uint32_t* rows) {
+	// The ARP's step editor: full colours
+	if (auto* arpScreen = menu_item::arpeggiator::openArpScreen(); arpScreen != nullptr && arpScreen->editingSteps()) {
+		return false;
+	}
+
 	if (should_render_shortcut_overlay()) {
 		*cols = 0xFFFFFFFF;
 		*rows = 0;
