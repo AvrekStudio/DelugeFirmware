@@ -69,6 +69,9 @@ public:
 	/// @name Input Handling
 	/// @{
 
+	/// Our screens (two-row menus): a SELECT press that would leave the page does nothing instead
+	[[nodiscard]] virtual bool keepsPageOnSelect() const { return false; }
+
 	/// @brief Handle an arbitrary button.
 	///
 	/// The returned result is forwarded up the View stack, so returning `ActionResult::DEALT_WITH` will suppress

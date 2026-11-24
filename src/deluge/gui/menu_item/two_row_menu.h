@@ -27,6 +27,8 @@ namespace deluge::gui::menu_item {
 /// previous / next menu of the chain.
 class TwoRowMenu : public HorizontalMenu {
 public:
+	/// SELECT never leaves our screens (it may still open a setting's own page, like a modulation's)
+	[[nodiscard]] bool keepsPageOnSelect() const override { return true; }
 	using HorizontalMenu::HorizontalMenu;
 
 	void beginSession(MenuItem* navigatedBackwardFrom) override;

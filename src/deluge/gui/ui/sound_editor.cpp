@@ -687,6 +687,9 @@ ActionResult SoundEditor::buttonAction(deluge::hid::Button b, bool on, bool inCa
 						}
 					}
 				}
+				else if (currentMenuItem->keepsPageOnSelect()) {
+					return ActionResult::DEALT_WITH; // our screens: SELECT doesn't leave the page
+				}
 				else {
 					goUpOneLevel();
 				}

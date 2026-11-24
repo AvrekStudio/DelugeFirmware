@@ -581,6 +581,11 @@ ActionResult KeyboardScreen::buttonAction(deluge::hid::Button b, bool on, bool i
 		return ActionResult::REMIND_ME_OUTSIDE_CARD_ROUTINE;
 	}
 
+	// The CHORD / CHORD LIB pages: SELECT doesn't leave them (no sound menu from there)
+	if (onChordPage() && b == SELECT_ENC && !Buttons::isShiftButtonPressed()) {
+		return ActionResult::DEALT_WITH;
+	}
+
 	// The CHORD / CHORD LIB pages: SYNTH = PRESET, KIT = STRUM, MIDI = LATCH (CV does nothing there)
 	if (onChordPage() && (b == SYNTH || b == KIT || b == MIDI || b == CV) && !Buttons::isShiftButtonPressed()
 	    && (currentUIMode == UI_MODE_NONE || currentUIMode == UI_MODE_AUDITIONING)) {
