@@ -4769,3 +4769,13 @@ void InstrumentClip::incrementPos(ModelStackWithTimelineCounter* modelStack, int
     for (int32_t i = 0; i < noteRows.getNumElements(); i++) {
         NoteRow* thisNoteRow = noteRows.getElement(i);
 */
+
+void InstrumentClip::regenerateEuclidRows(ModelStackWithTimelineCounter* modelStack) {
+	for (int32_t i = 0; i < noteRows.getNumElements(); i++) {
+		NoteRow* row = noteRows.getElement(i);
+		if (row->euclid.enabled) {
+			ModelStackWithNoteRow* rowStack = modelStack->addNoteRow(getNoteRowId(row, i), row);
+			row->regenerateEuclid(rowStack);
+		}
+	}
+}

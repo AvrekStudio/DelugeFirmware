@@ -104,6 +104,7 @@ add_executable(UnitTests
         track_note_defaults_tests.cpp
         chord_mode_tests.cpp
         vari_tests.cpp
+        euclid_tests.cpp
 )
 add_test(NAME UnitTests
         COMMAND UnitTests)

@@ -997,6 +997,9 @@ void Song::setClipLength(Clip* clip, uint32_t newLength, Action* action, bool ma
 	}
 
 	clip->output->clipLengthChanged(clip, oldLength);
+	if (clip->type == ClipType::INSTRUMENT) {
+		((InstrumentClip*)clip)->regenerateEuclidRows(modelStack); // EUC's LEN follows the rows' length
+	}
 
 	if (playbackHandler.isEitherClockActive() && isClipActive(clip)) {
 
@@ -1032,6 +1035,9 @@ void Song::doubleClipLength(InstrumentClip* clip, Action* action) {
 	}
 
 	clip->output->clipLengthChanged(clip, oldLength);
+	if (clip->type == ClipType::INSTRUMENT) {
+		((InstrumentClip*)clip)->regenerateEuclidRows(modelStack); // EUC's LEN follows the rows' length
+	}
 
 	if (playbackHandler.isEitherClockActive() && isClipActive(clip)) {
 		currentPlaybackMode->reSyncClip(modelStack);

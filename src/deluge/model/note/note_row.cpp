@@ -196,6 +196,12 @@ Error NoteRow::beenCloned(ModelStackWithNoteRow* modelStack, bool shouldFlattenR
 	else {
 		error = notes.beenCloned();
 	}
+	if (error == Error::NONE) {
+		error = euclidBackup.beenCloned();
+		if (error != Error::NONE) {
+			euclidBackup.init();
+		}
+	}
 
 	if (shouldFlattenReversing && sequenceDirectionMode != SequenceDirection::PINGPONG) {
 		sequenceDirectionMode = SequenceDirection::OBEY_PARENT;
@@ -2662,6 +2668,10 @@ void NoteRow::setLength(ModelStackWithNoteRow* modelStack, int32_t newLength, Ac
 
 	loopLengthIfIndependent = (newLength == clip->loopLength) ? 0 : newLength;
 
+	if (euclid.enabled) {
+		regenerateEuclid(modelStack); // EUC's LEN follows the row's length
+	}
+
 	if (playbackHandler.isEitherClockActive() && modelStack->song->isClipActive(clip)) {
 		lastProcessedPosIfIndependent = oldPos;
 		currentlyPlayingReversedIfIndependent =
@@ -3225,6 +3235,7 @@ Error NoteRow::readFromFile(Deserializer& reader, int32_t* minY, InstrumentClip*
 		// D_PRINTLN(tagName); delayMS(50);
 
 		uint16_t noteHexLength;
+		bool readingEuclidBackup = false;
 
 		if (!strcmp(tagName, "muted")) {
 			muted = reader.readTagOrAttributeValueInt();
@@ -3266,6 +3277,36 @@ Error NoteRow::readFromFile(Deserializer& reader, int32_t* minY, InstrumentClip*
 
 		else if (!strcmp(tagName, "sequenceDirection")) {
 			sequenceDirectionMode = stringToSequenceDirectionMode(reader.readTagOrAttributeValue());
+		}
+
+		else if (!strcmp(tagName, "eucOn")) {
+			euclid.enabled = reader.readTagOrAttributeValueInt() != 0;
+		}
+		else if (!strcmp(tagName, "eucPl1")) {
+			euclid.pulses1 = std::clamp<int32_t>(reader.readTagOrAttributeValueInt(), 0, deluge::euclid::kMaxSteps);
+		}
+		else if (!strcmp(tagName, "eucPl2")) {
+			euclid.pulses2 = std::clamp<int32_t>(reader.readTagOrAttributeValueInt(), 0, deluge::euclid::kMaxSteps);
+		}
+		else if (!strcmp(tagName, "eucRo1")) {
+			euclid.rotate1 = std::clamp<int32_t>(reader.readTagOrAttributeValueInt(), -64, 64);
+		}
+		else if (!strcmp(tagName, "eucRo2")) {
+			euclid.rotate2 = std::clamp<int32_t>(reader.readTagOrAttributeValueInt(), -64, 64);
+		}
+		else if (!strcmp(tagName, "eucTro")) {
+			euclid.trackRotate = std::clamp<int32_t>(reader.readTagOrAttributeValueInt(), -64, 64);
+		}
+		else if (!strcmp(tagName, "eucOp")) {
+			euclid.op = static_cast<deluge::euclid::Op>(
+			    std::clamp<int32_t>(reader.readTagOrAttributeValueInt(), 0, deluge::euclid::kNumOps - 1));
+		}
+		else if (!strcmp(tagName, "eucBackupNoteData")) {
+			// read like the notes, then put aside
+			notes.swapStateWith(&euclidBackup);
+			readingEuclidBackup = true;
+			noteHexLength = 28;
+			goto doReadNoteData;
 		}
 
 		else if (!strcmp(tagName, "bendRange")) {
@@ -3553,6 +3594,9 @@ getOut: {}
 			}
 		}
 
+		if (readingEuclidBackup) {
+			notes.swapStateWith(&euclidBackup);
+		}
 		reader.exitTag();
 	}
 
@@ -3592,14 +3636,28 @@ void NoteRow::writeToFile(Serializer& writer, int32_t drumIndex, InstrumentClip*
 		writer.writeAttribute("sequenceDirection", sequenceDirectionModeToString(sequenceDirectionMode));
 	}
 
-	if (notes.getNumElements()) {
+	if (!euclid.isDefault()) {
+		writer.writeAttribute("eucOn", euclid.enabled);
+		writer.writeAttribute("eucPl1", euclid.pulses1);
+		writer.writeAttribute("eucPl2", euclid.pulses2);
+		writer.writeAttribute("eucRo1", euclid.rotate1);
+		writer.writeAttribute("eucRo2", euclid.rotate2);
+		writer.writeAttribute("eucTro", euclid.trackRotate);
+		writer.writeAttribute("eucOp", static_cast<int32_t>(euclid.op));
+	}
+
+	for (NoteVector* vector : {euclid.enabled ? &euclidBackup : nullptr, &notes}) {
+		if (!vector || !vector->getNumElements()) {
+			continue;
+		}
 		writer.insertCommaIfNeeded();
 		writer.write("\n");
 		writer.printIndents();
-		writer.writeTagNameAndSeperator("noteDataWithSplitProb");
+		// the notes drawn before EUC was switched on come first
+		writer.writeTagNameAndSeperator(vector == &notes ? "noteDataWithSplitProb" : "eucBackupNoteData");
 		writer.write("\"0x");
-		for (int32_t n = 0; n < notes.getNumElements(); n++) {
-			Note* thisNote = notes.getElement(n);
+		for (int32_t n = 0; n < vector->getNumElements(); n++) {
+			Note* thisNote = vector->getElement(n);
 
 			char buffer[9];
 
@@ -4506,3 +4564,98 @@ for (int32_t n = 0; n < notes.getNumElements(); n++) {
 
 }
  */
+
+// EUC ----------------------------------------------------------------------------------------------------------------
+
+int32_t NoteRow::euclidStepTicks() {
+	return std::max<int32_t>(1, static_cast<int32_t>(currentSong->getBarLength()) / 16);
+}
+
+int32_t NoteRow::euclidSteps(ModelStackWithNoteRow const* modelStack) {
+	return deluge::euclid::stepsForLength(modelStack->getLoopLength(), euclidStepTicks());
+}
+
+void NoteRow::setEuclidEnabled(bool on, ModelStackWithNoteRow* modelStack) {
+	if (on == euclid.enabled) {
+		return;
+	}
+	if (sequenced) {
+		stopCurrentlyPlayingNote(modelStack);
+	}
+	if (on) {
+		// the notes drawn are put aside, the pattern takes their place
+		euclidBackup.empty();
+		notes.swapStateWith(&euclidBackup);
+		euclid.enabled = true;
+		regenerateEuclid(modelStack);
+	}
+	else {
+		// the notes drawn come back (those beyond the row's length, if it got shorter, are dropped)
+		euclid.enabled = false;
+		notes.empty();
+		notes.swapStateWith(&euclidBackup);
+		const int32_t length = modelStack->getLoopLength();
+		int32_t keep = notes.getNumElements();
+		while (keep > 0 && notes.getElement(keep - 1)->pos >= length) {
+			keep--;
+		}
+		if (keep < notes.getNumElements()) {
+			notes.deleteAtIndex(keep, notes.getNumElements() - keep);
+		}
+		if (keep > 0) {
+			Note* last = notes.getElement(keep - 1);
+			last->setLength(std::max<int32_t>(1, std::min<int32_t>(last->getLength(), length - last->pos)));
+		}
+		((Clip*)modelStack->getTimelineCounter())->expectEvent();
+	}
+}
+
+void NoteRow::regenerateEuclid(ModelStackWithNoteRow* modelStack) {
+	if (!euclid.enabled) {
+		return;
+	}
+	InstrumentClip* clip = (InstrumentClip*)modelStack->getTimelineCounter();
+	const int32_t length = modelStack->getLoopLength();
+	const int32_t stepTicks = euclidStepTicks();
+	const int32_t steps = euclidSteps(modelStack);
+	deluge::euclid::fitTo(euclid, steps);
+
+	// the steps that fire
+	int32_t positions[deluge::euclid::kMaxSteps];
+	int32_t count = 0;
+	for (int32_t i = 0; i < steps; i++) {
+		const int32_t pos = i * stepTicks;
+		if (pos < length && deluge::euclid::fires(euclid, i, steps)) {
+			positions[count++] = pos;
+		}
+	}
+
+	// the track's MASTER LEN (never past the next trig) and velocity
+	Instrument* instrument = (Instrument*)clip->output;
+	const int32_t noteLength =
+	    static_cast<int32_t>(deluge::track_defaults::lenTicks(instrument->noteDefaults.lenQuarters, stepTicks));
+	const int32_t velocity = instrument->defaultVelocity;
+
+	if (sequenced) {
+		stopCurrentlyPlayingNote(modelStack);
+	}
+	notes.empty();
+	if (count && notes.ensureEnoughSpaceAllocated(count)) {
+		for (int32_t k = 0; k < count; k++) {
+			const int32_t gap =
+			    (k + 1 < count) ? positions[k + 1] - positions[k] : length - positions[k] + positions[0];
+			int32_t i = notes.insertAtKey(positions[k], true);
+			if (i < 0) {
+				break;
+			}
+			Note* note = notes.getElement(i);
+			note->setLength(std::clamp<int32_t>(noteLength, 1, std::min(gap, length - positions[k])));
+			note->setVelocity(velocity);
+			note->setLift(kDefaultLiftValue);
+			note->setProbability(kNumProbabilityValues);
+			note->setIterance(kDefaultIteranceValue);
+			note->setFill(FillMode::OFF);
+		}
+	}
+	clip->expectEvent();
+}

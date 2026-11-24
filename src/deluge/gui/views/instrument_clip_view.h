@@ -45,6 +45,7 @@ class CopiedNoteRow;
 class ParamNode;
 class ModelStackWithTimelineCounter;
 class ModelStackWithNoteRow;
+class MenuItem;
 
 struct EditPadPress {
 	bool isActive;
@@ -184,6 +185,8 @@ public:
 	void doubleClipLengthAction();
 	/// PAGE+: the page shown (16 steps of 1/16) added at the end of the clip, undoable
 	void duplicatePageAction();
+	/// AUD held + horizontal encoder pressed, not turned yet: its release opens / closes the EUC page
+	bool euclidPressPending_ = false;
 	void setSelectedDrum(Drum* drum, bool shouldRedrawStuff = true, Kit* selectedKit = nullptr,
 	                     bool shouldSendMidiFeedback = true);
 	bool isDrumAuditioned(Drum* drum);
@@ -309,7 +312,7 @@ public:
 	void pulseSelectedNote();
 
 	// note row editor
-	bool enterNoteRowEditor();
+	bool enterNoteRowEditor(MenuItem* rootMenu = nullptr);
 	void exitNoteRowEditor();
 	bool handleNoteRowEditorPadAction(int32_t x, int32_t y, int32_t on);
 	bool handleNoteRowEditorMainPadAction(int32_t x, int32_t y, int32_t on);

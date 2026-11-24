@@ -5,6 +5,7 @@
 #include "gui/l10n/strings.h"
 #include "gui/menu_item/arpeggiator/steps.h"
 #include "gui/menu_item/dx/param.h"
+#include "gui/menu_item/euclid/euclid_menus.h"
 #include "gui/menu_item/file_selector.h"
 #include "gui/menu_item/horizontal_menu.h"
 #include "gui/menu_item/horizontal_menu_group.h"
@@ -647,6 +648,11 @@ ActionResult SoundEditor::buttonAction(deluge::hid::Button b, bool on, bool inCa
 				// The VARI screen keeps SELECT for itself (PRINT NOTES)
 				if (auto* variScreen = menu_item::vari::openScreen(); variScreen != nullptr) {
 					variScreen->selectPressed();
+					return ActionResult::DEALT_WITH;
+				}
+				// The EUC page: SELECT switches the row's EUC on / off
+				if (inEuclidEditor() && getCurrentMenuItem() == &menu_item::euclid::euclidScreen) {
+					menu_item::euclid::euclidScreen.selectPressed();
 					return ActionResult::DEALT_WITH;
 				}
 				// The ARP screen keeps SELECT for itself (LATCH on MODE)
@@ -2252,7 +2258,11 @@ bool SoundEditor::inNoteEditor() {
 }
 
 bool SoundEditor::inNoteRowEditor() {
-	return (menuItemNavigationRecord[0] == &noteRowEditorRootMenu);
+	return (menuItemNavigationRecord[0] == &noteRowEditorRootMenu) || inEuclidEditor();
+}
+
+bool SoundEditor::inEuclidEditor() {
+	return menuItemNavigationRecord[0] == &menu_item::euclid::euclidScreen;
 }
 
 // used to jump from note row editor to note editor and back

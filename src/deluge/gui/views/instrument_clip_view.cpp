@@ -24,6 +24,7 @@
 #include "gui/context_menu/stem_export/cancel_stem_export.h"
 #include "gui/l10n/l10n.h"
 #include "gui/menu_item/colour.h"
+#include "gui/menu_item/euclid/euclid_menus.h"
 #include "gui/menu_item/file_selector.h"
 #include "gui/menu_item/horizontal_menu.h"
 #include "gui/menu_item/multi_range.h"
@@ -766,8 +767,27 @@ doCancelPopup:
 				}
 			}
 			else if (isUIModeActive(UI_MODE_AUDITIONING)) {
-				if (!on) {
+				if (on) {
+					euclidPressPending_ = isUIModeActiveExclusively(UI_MODE_AUDITIONING);
+				}
+				else {
 					timeHorizontalKnobLastReleased = AudioEngine::audioSampleTimer;
+					// AUD + a click (no turn) of the horizontal encoder: the row's EUC page (opened / closed)
+					if (euclidPressPending_) {
+						if (inCardRoutine) {
+							return ActionResult::REMIND_ME_OUTSIDE_CARD_ROUTINE;
+						}
+						euclidPressPending_ = false;
+						exitUIMode(UI_MODE_HOLDING_HORIZONTAL_ENCODER_BUTTON);
+						display->cancelPopup();
+						if (getCurrentUI() == &soundEditor && soundEditor.inEuclidEditor()) {
+							soundEditor.exitCompletely();
+						}
+						else if (getCurrentUI() == this) {
+							enterNoteRowEditor(&deluge::gui::menu_item::euclid::euclidScreen);
+						}
+						return ActionResult::DEALT_WITH;
+					}
 					goto doCancelPopup;
 				}
 			}
@@ -821,6 +841,18 @@ doCancelPopup:
 				ModelStackWithNoteRow* modelStackWithNoteRow =
 				    ((InstrumentClip*)modelStack->getTimelineCounter())
 				        ->getNoteRowOnScreen(lastAuditionedYDisplay, modelStack);
+
+				// The row's EUC on: switches it off (its notes drawn before come back)
+				NoteRow* row = modelStackWithNoteRow->getNoteRowAllowNull();
+				if (row && row->euclid.enabled) {
+					row->setEuclidEnabled(false, modelStackWithNoteRow);
+					display->popupTextTemporary("EUC OFF");
+					uiNeedsRendering(this, 0xFFFFFFFF, 0);
+					if (getCurrentUI() == &soundEditor) {
+						renderUIsForOled();
+					}
+					goto passToOthers;
+				}
 
 				// Just pop up number - don't do anything
 				// Wait, why?
@@ -3936,7 +3968,7 @@ ActionResult InstrumentClipView::handleNoteEditorButtonAction(deluge::hid::Butto
 }
 
 // if you've selected a single note row and pressed the select encoder, you can enter the note row editor menu
-bool InstrumentClipView::enterNoteRowEditor() {
+bool InstrumentClipView::enterNoteRowEditor(MenuItem* rootMenu) {
 	if (getNumNoteRowsAuditioning() == 1) {
 		InstrumentClip* clip = getCurrentInstrumentClip();
 
@@ -3958,7 +3990,7 @@ bool InstrumentClipView::enterNoteRowEditor() {
 		if (modelStackWithNoteRow->getNoteRowAllowNull()) {
 			display->setNextTransitionDirection(1);
 			InstrumentClip* clip = getCurrentInstrumentClip();
-			if (soundEditor.setup(clip, &noteRowEditorRootMenu)) {
+			if (soundEditor.setup(clip, rootMenu != nullptr ? rootMenu : &noteRowEditorRootMenu)) {
 				// if it's a kit with affect entire enabled, toggle it off when entering note row editor
 				if (clip->output->type == OutputType::KIT) {
 					if (clip->affectEntire) {
@@ -4162,6 +4194,11 @@ ActionResult InstrumentClipView::handleNoteRowEditorHorizontalEncoderAction(int3
 
 ActionResult InstrumentClipView::handleNoteRowEditorButtonAction(deluge::hid::Button b, bool on, bool inCardRoutine) {
 	using namespace deluge::hid::button;
+
+	// the EUC page: SYNC-SCALING / TRIPLETS pick its row, LOAD switches EUC on / off
+	if (soundEditor.inEuclidEditor() && util::one_of<hid::Button>(b, {SYNC_SCALING, TRIPLETS, LOAD})) {
+		return soundEditor.getCurrentMenuItem()->buttonAction(b, on, inCardRoutine);
+	}
 
 	// to allow you to switch between items in horizontal menu
 	if (util::one_of<hid::Button>(b, {SYNTH, KIT, MIDI, CV})) {
@@ -6867,6 +6904,7 @@ void InstrumentClipView::rotateNoteRowHorizontally(int32_t offset) {
 	        ->getNoteRowOnScreen(lastAuditionedYDisplay, modelStack); // Don't create
 
 	rotateNoteRowHorizontally(modelStackWithNoteRow, offset, lastAuditionedYDisplay, true);
+	euclidPressPending_ = false; // it was a press-and-turn, not a click
 	// So don't accidentally shorten row after
 	shouldIgnoreHorizontalScrollKnobActionIfNotAlsoPressedForThisNotePress = true;
 	editedAnyPerNoteRowStuffSinceAuditioningBegan = true;

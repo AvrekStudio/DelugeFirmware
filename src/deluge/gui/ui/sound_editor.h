@@ -179,6 +179,8 @@ public:
 	// Note / Note Row Editor
 	bool inNoteEditor();
 	bool inNoteRowEditor();
+	/// The EUC page of a note row (AUD + horizontal encoder click): a kind of note row editor
+	bool inEuclidEditor();
 	void toggleNoteEditorParamMenu(int32_t on);
 	void updatePadLightsFor(MenuItem* item);
 

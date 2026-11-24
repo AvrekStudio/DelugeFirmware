@@ -16,6 +16,7 @@
  */
 
 #pragma once
+#include "model/note/euclid.h"
 
 #include "definitions_cxx.hpp"
 #include "gui/colour/colour.h"
@@ -145,6 +146,17 @@ public:
 	Drum* drum;
 	DrumName* firstOldDrumName;
 	NoteVector notes;
+	/// EUC: the row's Euclidean generator. While it's on, `notes` is its pattern and the notes drawn before are kept
+	/// in euclidBackup (given back when it's switched off)
+	deluge::euclid::Settings euclid;
+	NoteVector euclidBackup;
+	/// The ticks of an EUC step (1/16)
+	static int32_t euclidStepTicks();
+	/// LEN: the row's length in EUC steps
+	int32_t euclidSteps(ModelStackWithNoteRow const* modelStack);
+	void setEuclidEnabled(bool on, ModelStackWithNoteRow* modelStack);
+	/// Rewrites the row's notes from the EUC settings (if EUC is on)
+	void regenerateEuclid(ModelStackWithNoteRow* modelStack);
 	// values for whole row
 	uint8_t probabilityValue;
 	Iterance iteranceValue;

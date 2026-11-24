@@ -47,6 +47,9 @@ enum class VerticalNudgeType { ROW, OCTAVE };
 
 class InstrumentClip final : public Clip {
 public:
+	/// Rewrites the notes of the rows whose EUC is on (after a length change)
+	void regenerateEuclidRows(ModelStackWithTimelineCounter* modelStack);
+
 	explicit InstrumentClip(Song* song = nullptr);
 	~InstrumentClip() override;
 	void increaseLengthWithRepeats(ModelStackWithTimelineCounter* modelStack, int32_t newLength,
