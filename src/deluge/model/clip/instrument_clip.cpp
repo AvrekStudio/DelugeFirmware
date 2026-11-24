@@ -939,6 +939,14 @@ void InstrumentClip::sendPendingNoteOn(ModelStackWithTimelineCounter* modelStack
 	else {
 		ModelStackWithThreeMainThings* modelStackWithThreeMainThings =
 		    modelStackWithNoteRow->addOtherTwoThings(output->toModControllable(), &paramManager);
+		// VARI (synth tracks): live variations of the grid's notes
+		if (output->type == OutputType::SYNTH
+		    && static_cast<SoundInstrument*>(output)->variNoteOn(
+		        modelStackWithThreeMainThings, pendingNoteOn->noteRow, pendingNoteOn->pos,
+		        pendingNoteOn->noteRow->getNoteCode(), mpeValues, pendingNoteOn->velocity,
+		        pendingNoteOn->sampleSyncLength, pendingNoteOn->ticksLate)) {
+			return;
+		}
 		((MelodicInstrument*)output)
 		    ->sendNote(modelStackWithThreeMainThings, true, pendingNoteOn->noteRow->getNoteCode(), mpeValues,
 		               MIDI_CHANNEL_NONE, pendingNoteOn->velocity, pendingNoteOn->sampleSyncLength,

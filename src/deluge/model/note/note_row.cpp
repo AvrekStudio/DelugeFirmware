@@ -2559,6 +2559,7 @@ storePendingNoteOn:
 					pendingNoteOnList->pendingNoteOns[pendingNoteOnList->count].sampleSyncLength =
 					    thisNote->getLength();
 					pendingNoteOnList->pendingNoteOns[pendingNoteOnList->count].ticksLate = ticksLate;
+					pendingNoteOnList->pendingNoteOns[pendingNoteOnList->count].pos = thisNote->pos;
 					pendingNoteOnList->count++;
 				}
 				// FIXME: this is almost certainly a bad idea, we can't handle more than 8-10 note ons per
@@ -2587,6 +2588,11 @@ storePendingNoteOn:
 			ModelStackWithThreeMainThings* modelStackWithThreeMainThings =
 			    modelStack->addOtherTwoThings(((Clip*)modelStack->getTimelineCounter())->output->toModControllable(),
 			                                  &modelStack->getTimelineCounter()->paramManager);
+			// VARI may have varied this row's note (or ends it itself)
+			if (output->type == OutputType::SYNTH
+			    && static_cast<SoundInstrument*>(output)->variNoteOff(modelStackWithThreeMainThings, this, lift)) {
+				return;
+			}
 			((MelodicInstrument*)output)
 			    ->sendNote(modelStackWithThreeMainThings, false, getNoteCode(), nullptr, MIDI_CHANNEL_NONE, lift);
 		}

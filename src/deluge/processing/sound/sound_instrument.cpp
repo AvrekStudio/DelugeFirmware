@@ -95,6 +95,12 @@ Error SoundInstrument::readFromFile(Deserializer& reader, Song* song, Clip* clip
 
 void SoundInstrument::cutAllSound() {
 	Sound::killAllVoices();
+	for (VariEvent& e : variEvents_) {
+		e.owner = nullptr;
+	}
+	for (VariActive& a : variActive_) {
+		a.owner = nullptr;
+	}
 	for (StrumPending& p : strumPending_) {
 		p.key = -1;
 	}
@@ -113,6 +119,7 @@ void SoundInstrument::renderOutput(ModelStack* modelStack, std::span<StereoSampl
 	        ->addOtherTwoThingsButNoNoteRow(this, getParamManager(modelStack->song));
 
 	renderStrum(modelStackWithThreeMainThings, static_cast<int32_t>(output.size())); // CHORD MODE STRUM
+	renderVari(modelStackWithThreeMainThings, static_cast<int32_t>(output.size()));  // VARI's late notes
 	if (latched_.any() && !latchActive()) {
 		releaseLatched(modelStackWithThreeMainThings); // LATCH switched off (or the arp): the latched notes end
 	}
@@ -751,4 +758,152 @@ bool SoundInstrument::noteIsOn(int32_t noteCode, bool resetTimeEntered) {
 		}
 	}
 	return false;
+}
+
+// VARI ----------------------------------------------------------------------------------------------------------------
+
+namespace {
+uint32_t random32() {
+	return (static_cast<uint32_t>(getRandom255()) << 24) | (static_cast<uint32_t>(getRandom255()) << 16)
+	       | (static_cast<uint32_t>(getRandom255()) << 8) | getRandom255();
+}
+} // namespace
+
+bool SoundInstrument::variNoteOn(ModelStackWithThreeMainThings* modelStack, const void* owner, int32_t pos,
+                                 int32_t note, int16_t const* mpeValues, uint8_t velocity, uint32_t lengthTicks,
+                                 int32_t ticksLate) {
+	using namespace deluge::vari;
+	if (!vari.anyVariation()) {
+		return false;
+	}
+	variEnd(modelStack, owner); // the row's previous note ends first
+
+	// The note's seed: kept from one pass to the next, redrawn MUT % of the time
+	const uint32_t key = ((reinterpret_cast<uintptr_t>(owner) * 2654435761u) ^ static_cast<uint32_t>(pos)) | 1;
+	VariSeed& seed = variSeeds_[(key >> 3) % variSeeds_.size()];
+	if (seed.key != key || seed.seed == 0 || redraws(vari, (getRandom255() * 100) >> 8)) {
+		seed.key = key;
+		seed.seed = random32() | 1;
+	}
+
+	const deluge::chordmode::Scale scale{currentSong->key.modeNotes.toBits(), currentSong->key.rootNote};
+	const Variation v = vary(vari, seed.seed, note, velocity, scale);
+
+	const int64_t samplesPerTick = playbackHandler.getTimePerInternalTick();
+	const int32_t length =
+	    std::max<int32_t>(64, static_cast<int32_t>(lengthTicks * samplesPerTick * v.gatePermille / 1000));
+	const int32_t delay = v.delayPermille * kMaxHumanDelayMs * (kSampleRate / 1000) / 1000;
+	const bool managed = v.gatePermille != 1000 || v.ratchets > 1 || delay > 0;
+
+	VariActive* active = nullptr;
+	for (VariActive& a : variActive_) {
+		if (a.owner == nullptr) {
+			active = &a;
+			break;
+		}
+	}
+	if (active == nullptr) {
+		return false; // too many rows sounding: play it as it is
+	}
+	active->owner = owner;
+	active->note = static_cast<int16_t>(v.note);
+	active->managed = managed;
+
+	if (!managed) {
+		sendNote(modelStack, true, v.note, mpeValues, MIDI_CHANNEL_NONE, v.velocity, lengthTicks, ticksLate, 0);
+		return true;
+	}
+
+	// GATE / RATC / HUMN: VARI starts and ends the note (or its repeats) itself
+	auto schedule = [&](bool on, int32_t at) {
+		for (VariEvent& e : variEvents_) {
+			if (e.owner == nullptr) {
+				e.owner = owner;
+				e.on = on;
+				e.note = static_cast<int16_t>(v.note);
+				e.velocity = static_cast<uint8_t>(on ? v.velocity : kDefaultLiftValue);
+				e.samplesLeft = at;
+				e.syncLength = lengthTicks;
+				for (int32_t d = 0; d < kNumExpressionDimensions; d++) {
+					e.mpe[d] = mpeValues != nullptr ? mpeValues[d] : 0;
+				}
+				return;
+			}
+		}
+	};
+	const int32_t part = std::max<int32_t>(32, length / v.ratchets);
+	for (int32_t k = 0; k < v.ratchets; k++) {
+		const int32_t onAt = delay + k * part;
+		const int32_t offAt = k == v.ratchets - 1 ? delay + length : onAt + part / 2;
+		if (onAt == 0) {
+			sendNote(modelStack, true, v.note, mpeValues, MIDI_CHANNEL_NONE, v.velocity, lengthTicks, ticksLate, 0);
+		}
+		else {
+			schedule(true, onAt);
+		}
+		schedule(false, offAt);
+	}
+	return true;
+}
+
+bool SoundInstrument::variNoteOff(ModelStackWithThreeMainThings* modelStack, const void* owner, uint8_t lift) {
+	for (VariActive& a : variActive_) {
+		if (a.owner != owner) {
+			continue;
+		}
+		if (a.managed) {
+			return true; // VARI ends it itself, when its varied length is up
+		}
+		const int16_t note = a.note;
+		a.owner = nullptr;
+		sendNote(modelStack, false, note, nullptr, MIDI_CHANNEL_NONE, lift, 0, 0, 0);
+		return true;
+	}
+	return false;
+}
+
+void SoundInstrument::variEnd(ModelStackWithThreeMainThings* modelStack, const void* owner) {
+	for (VariEvent& e : variEvents_) {
+		if (e.owner == owner) {
+			e.owner = nullptr; // what was still to come won't
+		}
+	}
+	for (VariActive& a : variActive_) {
+		if (a.owner == owner) {
+			const int16_t note = a.note;
+			a.owner = nullptr;
+			sendNote(modelStack, false, note, nullptr, MIDI_CHANNEL_NONE, kDefaultLiftValue, 0, 0, 0);
+		}
+	}
+}
+
+void SoundInstrument::renderVari(ModelStackWithThreeMainThings* modelStack, int32_t numSamples) {
+	for (VariEvent& e : variEvents_) {
+		if (e.owner == nullptr) {
+			continue;
+		}
+		e.samplesLeft -= numSamples;
+		if (e.samplesLeft > 0) {
+			continue;
+		}
+		const void* owner = e.owner;
+		e.owner = nullptr;
+		sendNote(modelStack, e.on, e.note, e.on ? e.mpe.data() : nullptr, MIDI_CHANNEL_NONE, e.velocity,
+		         e.on ? e.syncLength : 0, 0, 0);
+		if (e.on) {
+			continue;
+		}
+		// the row's last event done: it is free again
+		bool more = false;
+		for (const VariEvent& other : variEvents_) {
+			more |= other.owner == owner;
+		}
+		if (!more) {
+			for (VariActive& a : variActive_) {
+				if (a.owner == owner) {
+					a.owner = nullptr;
+				}
+			}
+		}
+	}
 }

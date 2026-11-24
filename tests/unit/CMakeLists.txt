@@ -103,6 +103,7 @@ add_executable(UnitTests
         arp_steps_tests.cpp
         track_note_defaults_tests.cpp
         chord_mode_tests.cpp
+        vari_tests.cpp
 )
 add_test(NAME UnitTests
         COMMAND UnitTests)

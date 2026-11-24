@@ -104,7 +104,41 @@ public:
 	bool keyboardChordLatch = false;
 	int8_t keyboardStrumIndex = -1;
 
+	/// VARI: a grid note starting (owner = its NoteRow, pos = its place): plays it varied. False = VARI has nothing to
+	/// vary, play it as it is.
+	bool variNoteOn(ModelStackWithThreeMainThings* modelStack, const void* owner, int32_t pos, int32_t note,
+	                int16_t const* mpeValues, uint8_t velocity, uint32_t lengthTicks, int32_t ticksLate);
+	/// VARI: a grid note ending. True = VARI took care of it.
+	bool variNoteOff(ModelStackWithThreeMainThings* modelStack, const void* owner, uint8_t lift);
+
 private:
+	// VARI: the note each grid row is sounding, and whether VARI ends it itself (GATE / RATC / HUMN)
+	struct VariActive {
+		const void* owner = nullptr;
+		int16_t note = -1;
+		bool managed = false;
+	};
+	std::array<VariActive, 16> variActive_{};
+	// VARI: notes to start / end later
+	struct VariEvent {
+		const void* owner = nullptr;
+		bool on = false;
+		int16_t note = 0;
+		uint8_t velocity = 0;
+		int32_t samplesLeft = 0;
+		uint32_t syncLength = 0;
+		std::array<int16_t, kNumExpressionDimensions> mpe{};
+	};
+	std::array<VariEvent, 48> variEvents_{};
+	// VARI: each grid note's seed (MUT keeps or redraws it) - a small table, by row and place
+	struct VariSeed {
+		uint32_t key = 0;
+		uint32_t seed = 0;
+	};
+	std::array<VariSeed, 128> variSeeds_{};
+	void variEnd(ModelStackWithThreeMainThings* modelStack, const void* owner);
+	void renderVari(ModelStackWithThreeMainThings* modelStack, int32_t numSamples);
+
 	// CHORD MODE: the notes each held key started (so its note off ends them, whatever the settings are by then)
 	struct ChordHeld {
 		int16_t key = -1;

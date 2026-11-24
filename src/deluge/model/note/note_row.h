@@ -72,6 +72,7 @@ struct SquareInfo {
 struct PendingNoteOn {
 	NoteRow* noteRow;
 	int32_t noteRowId;
+	int32_t pos; // the note's place (VARI keeps each note's variation)
 	uint32_t sampleSyncLength;
 	int32_t ticksLate;
 	uint8_t probability;
