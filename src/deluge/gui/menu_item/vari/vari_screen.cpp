@@ -48,6 +48,7 @@ constexpr int32_t kRobotCentre = 28;
 
 // The setting under each cell: index = the cell, in the screen's order
 enum Sign : uint8_t { CHNC, VELO, NOTE, OCT, GATE, RATC, HUMN, MUT };
+constexpr std::array<const char*, 8> kLabels = {"CHNC", "VELO", "NOTE", "OCT", "GATE", "RATC", "HUMN", "MUT"};
 constexpr std::array<const char*, 8> kNames = {"CHANCE", "VELOCITY", "NOTE",  "OCTAVE",
                                                "GATE",   "RATCHET",  "HUMAN", "MUTATE"};
 
@@ -62,120 +63,6 @@ void fill(Canvas& c, int32_t x0, int32_t y0, int32_t x1, int32_t y1) {
 void smallText(Canvas& c, const char* text, int32_t centreX, int32_t y) {
 	const int32_t w = c.getStringWidthInPixels(text, kTextSmallSizeY);
 	c.drawString(text, centreX - w / 2, y, kTextSmallSpacingX, kTextSmallSizeY);
-}
-
-/// A setting's sign, drawn from its value (0-100 %) in the 18 x 11 px from (lx, ty)
-void drawSign(Canvas& c, int32_t sign, int32_t lx, int32_t ty, int32_t v) {
-	switch (sign) {
-	case CHNC: {
-		// 12 squares: as many filled as the chance
-		const int32_t filled = (v * 12 + 50) / 100;
-		for (int32_t i = 0; i < 12; i++) {
-			const int32_t x = lx + 1 + (i % 4) * 5;
-			const int32_t y = ty + 1 + (i / 4) * 3;
-			if (i < filled) {
-				fill(c, x, y, x + 2, y + 1);
-			}
-			else {
-				c.drawPixel(x + 1, y + 1);
-			}
-		}
-		break;
-	}
-	case VELO: {
-		// 4 bars, the same height at 0, further apart as the value grows
-		constexpr int32_t kOffsets[4] = {4, -4, 2, -2};
-		for (int32_t i = 0; i < 4; i++) {
-			const int32_t h = 6 + kOffsets[i] * v / 100;
-			const int32_t x = lx + 1 + i * 5;
-			fill(c, x, ty + 10 - h + 1, x + 2, ty + 10);
-		}
-		break;
-	}
-	case NOTE: {
-		// 4 notes, on a line at 0, jumping up and down as the value grows
-		constexpr int32_t kOffsets[4] = {-4, 3, -2, 4};
-		for (int32_t i = 0; i < 4; i++) {
-			const int32_t y = ty + 4 + kOffsets[i] * v / 100;
-			const int32_t x = lx + 1 + i * 5;
-			fill(c, x, y, x + 2, y + 2);
-		}
-		break;
-	}
-	case OCT: {
-		// a line, with an arrow up and an arrow down growing with the value
-		for (int32_t x = lx + 2; x <= lx + 15; x++) {
-			c.drawPixel(x, ty + 5);
-		}
-		const int32_t len = 1 + v * 4 / 100;
-		for (int32_t i = 1; i <= len; i++) {
-			c.drawPixel(lx + 5, ty + 5 - i);
-			c.drawPixel(lx + 12, ty + 5 + i);
-		}
-		c.drawPixel(lx + 4, ty + 6 - len);
-		c.drawPixel(lx + 6, ty + 6 - len);
-		c.drawPixel(lx + 11, ty + 4 + len);
-		c.drawPixel(lx + 13, ty + 4 + len);
-		break;
-	}
-	case GATE: {
-		// a note, its tail (dotted) longer as the value grows
-		fill(c, lx + 1, ty + 4, lx + 8, ty + 6);
-		const int32_t tail = v * 9 / 100;
-		for (int32_t x = lx + 9; x <= lx + 8 + tail; x += 2) {
-			c.drawPixel(x, ty + 5);
-		}
-		break;
-	}
-	case RATC: {
-		// 1 to 4 strokes
-		const int32_t n = 1 + v * 3 / 100;
-		for (int32_t i = 0; i < n; i++) {
-			const int32_t x = n == 1 ? lx + 8 : lx + 1 + i * 16 / (n - 1);
-			for (int32_t y = ty + 2; y <= ty + 8; y++) {
-				c.drawPixel(x, y);
-			}
-		}
-		break;
-	}
-	case HUMN: {
-		// notes over a grid, slipping late as the value grows
-		constexpr int32_t kSlip[4] = {0, 2, 1, 2};
-		for (int32_t i = 0; i < 4; i++) {
-			const int32_t x = lx + 1 + i * 5;
-			c.drawPixel(x, ty + 10);
-			const int32_t s = kSlip[i] * v / 100;
-			fill(c, x + s, ty + 3, x + s + 1, ty + 7);
-		}
-		break;
-	}
-	default: { // MUT
-		// a loop: solid at 0 (frozen), breaking up as the value grows
-		int32_t k = 0;
-		auto dot = [&](int32_t x, int32_t y) {
-			if ((k * 37) % 100 >= v * 80 / 100) {
-				c.drawPixel(x, y);
-			}
-			k++;
-		};
-		for (int32_t x = lx + 2; x <= lx + 15; x++) {
-			dot(x, ty + 1);
-		}
-		for (int32_t y = ty + 2; y <= ty + 9; y++) {
-			dot(lx + 15, y);
-		}
-		for (int32_t x = lx + 14; x >= lx + 2; x--) {
-			dot(x, ty + 9);
-		}
-		for (int32_t y = ty + 8; y >= ty + 2; y--) {
-			dot(lx + 2, y);
-		}
-		// the arrowhead: it goes round
-		c.drawPixel(lx + 14, ty);
-		c.drawPixel(lx + 14, ty + 2);
-		break;
-	}
-	}
 }
 
 void drawRobot(Canvas& c, int32_t variation, int32_t chance, int32_t step, const char* name) {
@@ -260,7 +147,6 @@ void Screen::renderOLED() {
 	for (int32_t i = 0; i < static_cast<int32_t>(items.size()) && i < 8; i++) {
 		const int32_t x0 = kCellsX + (i % 4) * kCellW;
 		const int32_t y0 = (i / 4) * kCellH;
-		drawSign(image, i, x0 + 1, y0 + 4, values[i]);
 		char text[8];
 		if (values[i] == 0 && i != CHNC && i != MUT) {
 			snprintf(text, sizeof(text), "OFF");
@@ -268,7 +154,9 @@ void Screen::renderOLED() {
 		else {
 			snprintf(text, sizeof(text), "%d%%", static_cast<int>(values[i]));
 		}
-		smallText(image, text, x0 + kCellW / 2, y0 + 17);
+		// the value above, the setting's name under it
+		smallText(image, text, x0 + kCellW / 2, y0 + 6);
+		smallText(image, kLabels[i], x0 + kCellW / 2, y0 + 14);
 		if (i == currentIndex) {
 			image.invertAreaRounded(x0, kCellW, y0, y0 + kCellH - 1);
 		}

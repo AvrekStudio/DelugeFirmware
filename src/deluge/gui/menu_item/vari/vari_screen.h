@@ -21,8 +21,8 @@
 
 // The VARI screen, after the old firmware's GENERATOR "robot" screen: "VARI" written down a thin white strip, a
 // little robot (its eyes show how much the notes vary, its mouth the chance they play; its feet step and its antenna
-// sways while a value turns) with the setting's name under it, and the settings as 2 x 4 cells, each a small sign
-// drawn from its value with the value under it.
+// sways while a value turns) with the setting's name under it, and the settings as 2 x 4 cells: the value, and the
+// setting's short name under it.
 
 namespace deluge::gui::menu_item::vari {
 
