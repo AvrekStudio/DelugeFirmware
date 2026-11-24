@@ -33,6 +33,9 @@ constexpr std::array<const char*, NUM_PARAMS> kSaveNames = {"variVelo",    "vari
                                                             "variRatchet", "variHuman", "variMutate"};
 constexpr int32_t kMax = 100;
 
+/// Set while VARI PRINT asks for its undo action (from the sound editor)
+inline bool printing = false;
+
 struct Settings {
 	std::array<uint8_t, NUM_PARAMS> amount{}; // MUT 0 % = the variation drawn is kept, pass after pass
 

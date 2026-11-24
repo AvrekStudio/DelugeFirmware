@@ -18,10 +18,13 @@
 #include "gui/menu_item/vari/vari_screen.h"
 #include "gui/menu_item/integer.h"
 #include "gui/menu_item/vertical_title.h"
+#include "gui/ui/sound_editor.h"
 #include "gui/ui/ui.h"
 #include "gui/ui_timer_manager.h"
 #include "hid/display/display.h"
 #include "hid/display/oled.h"
+#include "model/song/song.h"
+#include "processing/sound/sound_instrument.h"
 #include <array>
 #include <cstdio>
 
@@ -161,10 +164,79 @@ void Screen::renderOLED() {
 			image.invertAreaRounded(x0, kCellW, y0, y0 + kCellH - 1);
 		}
 	}
+	if (confirming_) {
+		drawPrintQuestion();
+	}
 	OLED::markChanged();
 }
 
+namespace {
+Screen* shownScreen = nullptr;
+}
+
+Screen* openScreen() {
+	if (shownScreen == nullptr || getCurrentUI() != &soundEditor || soundEditor.getCurrentMenuItem() != shownScreen) {
+		return nullptr;
+	}
+	return shownScreen;
+}
+
+void Screen::beginSession(MenuItem* navigatedBackwardFrom) {
+	TwoRowMenu::beginSession(navigatedBackwardFrom);
+	shownScreen = this;
+	confirming_ = false;
+}
+
+void Screen::selectPressed() {
+	if (!confirming_) {
+		confirming_ = true;
+		yes_ = false; // NO first: printing changes the grid
+		renderUIsForOled();
+		return;
+	}
+	confirming_ = false;
+	if (yes_ && getCurrentOutputType() == OutputType::SYNTH) {
+		auto* sound = static_cast<SoundInstrument*>(getCurrentOutput());
+		if (sound->variPrint(getCurrentInstrumentClip())) {
+			display->popupTextTemporary("NOTES PRINTED");
+		}
+	}
+	renderUIsForOled();
+}
+
+void Screen::drawPrintQuestion() {
+	auto& image = OLED::main;
+	constexpr int32_t x0 = 44;
+	constexpr int32_t x1 = 125;
+	constexpr int32_t y0 = 8;
+	constexpr int32_t y1 = 39;
+	image.clearAreaExact(x0, y0, x1, y1);
+	for (int32_t x = x0; x <= x1; x++) {
+		image.drawPixel(x, y0);
+		image.drawPixel(x, y1);
+	}
+	for (int32_t y = y0; y <= y1; y++) {
+		image.drawPixel(x0, y);
+		image.drawPixel(x1, y);
+	}
+	image.drawStringCentered("PRINT NOTES?", x0, y0 + 6, kTextSmallSpacingX, kTextSmallSizeY, x1 - x0 + 1);
+	// NO / YES: the one chosen inverted
+	constexpr int32_t kChoiceY = y0 + 18;
+	constexpr int32_t kNoX = x0 + 10;
+	constexpr int32_t kYesX = x0 + 46;
+	constexpr int32_t kChoiceW = 26;
+	image.drawStringCentered("NO", kNoX, kChoiceY, kTextSmallSpacingX, kTextSmallSizeY, kChoiceW);
+	image.drawStringCentered("YES", kYesX, kChoiceY, kTextSmallSpacingX, kTextSmallSizeY, kChoiceW);
+	const int32_t sx = yes_ ? kYesX : kNoX;
+	image.invertAreaRounded(sx, kChoiceW, kChoiceY - 3, kChoiceY + kTextSmallSizeY + 2);
+}
+
 void Screen::selectEncoderAction(int32_t offset) {
+	if (confirming_) {
+		yes_ = offset > 0;
+		renderUIsForOled();
+		return;
+	}
 	TwoRowMenu::selectEncoderAction(offset);
 	if (display->hasPopup()) {
 		display->cancelPopup();
@@ -191,6 +263,8 @@ ActionResult Screen::timerCallback() {
 
 void Screen::endSession() {
 	TwoRowMenu::endSession();
+	confirming_ = false;
+	shownScreen = nullptr;
 	uiTimerManager.unsetTimer(TimerName::UI_SPECIFIC);
 	step_ = 0;
 }

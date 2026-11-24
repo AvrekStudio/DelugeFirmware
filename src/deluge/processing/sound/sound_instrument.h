@@ -108,6 +108,11 @@ public:
 	/// vary, play it as it is.
 	bool variNoteOn(ModelStackWithThreeMainThings* modelStack, const void* owner, int32_t pos, int32_t note,
 	                int16_t const* mpeValues, uint8_t velocity, uint32_t lengthTicks, int32_t ticksLate);
+	/// VARI: the seed a grid note plays with (drawn now if it has none yet) - PRINT writes what the notes play
+	uint32_t variSeedFor(const void* owner, int32_t pos);
+	/// VARI PRINT: writes the current variation of every note of the clip onto its grid (undoable), then sets VARI's
+	/// amounts to OFF so it plays as printed. False if nothing could be written.
+	bool variPrint(InstrumentClip* clip);
 	/// VARI: a grid note ending. True = VARI took care of it.
 	bool variNoteOff(ModelStackWithThreeMainThings* modelStack, const void* owner, uint8_t lift);
 

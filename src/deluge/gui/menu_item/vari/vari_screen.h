@@ -34,9 +34,18 @@ public:
 	ActionResult buttonAction(hid::Button b, bool on, bool inCardRoutine) override;
 	ActionResult timerCallback() override;
 	void endSession() override;
+	void beginSession(MenuItem* navigatedBackwardFrom) override;
+	/// SELECT on any setting: asks "PRINT NOTES?" - NO / YES with SELECT turned, SELECT again to confirm
+	void selectPressed();
 
 private:
-	int8_t step_ = 0; // robot animation: 0 = at rest, +1 / -1 = which foot is up
+	int8_t step_ = 0;         // robot animation: 0 = at rest, +1 / -1 = which foot is up
+	bool confirming_ = false; // the PRINT NOTES question is up
+	bool yes_ = false;
+	void drawPrintQuestion();
 };
+
+/// The VARI screen open in the sound editor, if any
+Screen* openScreen();
 
 } // namespace deluge::gui::menu_item::vari

@@ -11,6 +11,7 @@
 #include "gui/menu_item/menu_item.h"
 #include "gui/menu_item/mpe/zone_num_member_channels.h"
 #include "gui/menu_item/multi_range.h"
+#include "gui/menu_item/vari/vari_screen.h"
 #include "gui/ui/audio_recorder.h"
 #include "gui/ui/browser/sample_browser.h"
 #include "gui/ui/keyboard/keyboard_screen.h"
@@ -643,6 +644,11 @@ ActionResult SoundEditor::buttonAction(deluge::hid::Button b, bool on, bool inCa
 					return ActionResult::REMIND_ME_OUTSIDE_CARD_ROUTINE;
 				}
 
+				// The VARI screen keeps SELECT for itself (PRINT NOTES)
+				if (auto* variScreen = menu_item::vari::openScreen(); variScreen != nullptr) {
+					variScreen->selectPressed();
+					return ActionResult::DEALT_WITH;
+				}
 				// The ARP screen keeps SELECT for itself (LATCH on MODE)
 				if (auto* arpScreen = menu_item::arpeggiator::openArpScreen(); arpScreen != nullptr) {
 					arpScreen->selectPressed();

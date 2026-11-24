@@ -42,6 +42,7 @@
 #include "model/consequence/consequence_swing_change.h"
 #include "model/consequence/consequence_tempo_change.h"
 #include "model/instrument/kit.h"
+#include "model/instrument/vari_settings.h"
 #include "model/song/clip_iterators.h"
 #include "model/song/song.h"
 #include "playback/mode/arrangement.h"
@@ -96,7 +97,7 @@ Action* ActionLogger::getNewAction(ActionType newActionType, ActionAddition addT
 	// Exception for loadPatternUI which does edit note rows on the grid
 	if ((getCurrentUI() != getRootUI())
 	    && (!(getCurrentUI() == &soundEditor && (soundEditor.inNoteEditor() || soundEditor.inNoteRowEditor())))
-	    && (getCurrentUI() != &loadPatternUI)) {
+	    && (getCurrentUI() != &loadPatternUI) && !(getCurrentUI() == &soundEditor && deluge::vari::printing)) {
 		return nullptr;
 	}
 

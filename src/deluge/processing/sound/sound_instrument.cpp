@@ -20,8 +20,10 @@
 #include "dsp/stereo_sample.h"
 #include "extern.h"
 #include "gui/views/view.h"
+#include "model/action/action_logger.h"
 #include "model/clip/instrument_clip.h"
 #include "model/model_stack.h"
+#include "model/note/note.h"
 #include "model/note/note_row.h"
 #include "model/song/song.h"
 #include "model/voice/voice.h"
@@ -842,6 +844,109 @@ bool SoundInstrument::variNoteOn(ModelStackWithThreeMainThings* modelStack, cons
 			schedule(true, onAt);
 		}
 		schedule(false, offAt);
+	}
+	return true;
+}
+
+uint32_t SoundInstrument::variSeedFor(const void* owner, int32_t pos) {
+	const uint32_t key = ((reinterpret_cast<uintptr_t>(owner) * 2654435761u) ^ static_cast<uint32_t>(pos)) | 1;
+	VariSeed& seed = variSeeds_[(key >> 3) % variSeeds_.size()];
+	if (seed.key != key || seed.seed == 0) {
+		seed.key = key;
+		seed.seed = random32() | 1;
+	}
+	return seed.seed;
+}
+
+bool SoundInstrument::variPrint(InstrumentClip* clip) {
+	using namespace deluge::vari;
+	if (clip == nullptr || !vari.anyVariation()) {
+		return false;
+	}
+	// The notes as they will play: worked out first, written after
+	struct Printed {
+		int16_t y;
+		int32_t pos;
+		int32_t length;
+		uint8_t velocity;
+		uint8_t probability;
+		Iterance iterance;
+		uint8_t fill;
+		int32_t rowLength;
+	};
+	constexpr int32_t kMaxPrinted = 512;
+	static Printed printed[kMaxPrinted];
+	int32_t count = 0;
+
+	const deluge::chordmode::Scale scale{currentSong->key.modeNotes.toBits(), currentSong->key.rootNote};
+	const int64_t samplesPerTick = std::max<int64_t>(1, playbackHandler.getTimePerInternalTick());
+	for (int32_t r = 0; r < clip->noteRows.getNumElements(); r++) {
+		NoteRow* row = clip->noteRows.getElement(r);
+		const int32_t rowLength = row->loopLengthIfIndependent ? row->loopLengthIfIndependent : clip->loopLength;
+		for (int32_t i = 0; i < row->notes.getNumElements(); i++) {
+			Note* n = row->notes.getElement(i);
+			const Variation v = vary(vari, variSeedFor(row, n->pos), row->y, n->velocity, scale);
+			const int32_t length =
+			    std::max<int32_t>(1, static_cast<int32_t>(int64_t{n->length} * v.gatePermille / 1000));
+			const int32_t delayTicks = static_cast<int32_t>(int64_t{v.delayPermille} * kMaxHumanDelayMs
+			                                                * (kSampleRate / 1000) / 1000 / samplesPerTick);
+			const int32_t part = std::max<int32_t>(1, length / v.ratchets);
+			for (int32_t k = 0; k < v.ratchets && count < kMaxPrinted; k++) {
+				Printed& p = printed[count++];
+				p.y = static_cast<int16_t>(v.note);
+				p.pos = (n->pos + delayTicks + k * part) % rowLength;
+				p.length =
+				    k == v.ratchets - 1 ? std::max<int32_t>(1, length - k * part) : std::max<int32_t>(1, part / 2);
+				p.velocity = static_cast<uint8_t>(v.velocity);
+				p.probability = static_cast<uint8_t>(n->getProbability());
+				p.iterance = n->getIterance();
+				p.fill = static_cast<uint8_t>(n->getFill());
+				p.rowLength = rowLength;
+			}
+		}
+	}
+	if (count == 0) {
+		return false;
+	}
+
+	// One action, so UNDO brings the grid back as it was
+	printing = true; // (the sound editor is open: the action logger lets VARI PRINT through)
+	Action* action = actionLogger.getNewAction(ActionType::MISC, ActionAddition::NOT_ALLOWED);
+	printing = false;
+	char modelStackMemory[MODEL_STACK_MAX_SIZE];
+	ModelStackWithTimelineCounter* modelStack = currentSong->setupModelStackWithCurrentClip(modelStackMemory);
+	for (int32_t r = 0; r < clip->noteRows.getNumElements(); r++) {
+		NoteRow* row = clip->noteRows.getElement(r);
+		const int32_t rowLength = row->loopLengthIfIndependent ? row->loopLengthIfIndependent : clip->loopLength;
+		ModelStackWithNoteRow* rowStack = modelStack->addNoteRow(clip->getNoteRowId(row, r), row);
+		row->clearArea(0, rowLength, rowStack, action, rowLength);
+	}
+	// Each printed note, in its row: a note running into the next one of the row is cut there
+	for (int32_t i = 0; i < count; i++) {
+		Printed& p = printed[i];
+		int32_t room = p.rowLength - p.pos;
+		for (int32_t j = 0; j < count; j++) {
+			if (j != i && printed[j].y == p.y && printed[j].pos > p.pos) {
+				room = std::min(room, printed[j].pos - p.pos);
+			}
+			if (j < i && printed[j].y == p.y && printed[j].pos == p.pos) {
+				room = 0; // the same place twice: the first wins
+			}
+		}
+		if (room <= 0) {
+			continue;
+		}
+		ModelStackWithNoteRow* rowStack = clip->getOrCreateNoteRowForYNote(p.y, modelStack, action);
+		if (rowStack == nullptr || rowStack->getNoteRowAllowNull() == nullptr) {
+			continue;
+		}
+		rowStack->getNoteRow()->attemptNoteAdd(p.pos, std::min(p.length, room), p.velocity, p.probability, p.iterance,
+		                                       p.fill, rowStack, action);
+	}
+
+	// It plays as printed from now on
+	for (int32_t a = VELO; a <= HUMN; a++) {
+		vari.amount[a] = 0;
 	}
 	return true;
 }
