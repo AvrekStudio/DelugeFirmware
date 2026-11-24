@@ -19,10 +19,8 @@
 
 #include "gui/menu_item/two_row_menu.h"
 
-// The VARI screen, after the old firmware's GENERATOR "robot" screen: "VARI" written down a thin white strip, a
-// little robot (its eyes show how much the notes vary, its mouth the chance they play; its feet step and its antenna
-// sways while a value turns) with the setting's name under it, and the settings as 2 x 4 cells: the value, and the
-// setting's short name under it.
+// The VARI screen: "VARI" written down a thin white strip, and the settings as 2 x 4 cells (CHNC VELO NOTE OCT /
+// GATE RATC HUMN MUT): the value, and the setting's short name under it.
 
 namespace deluge::gui::menu_item::vari {
 
@@ -32,14 +30,12 @@ public:
 	void renderOLED() override;
 	void selectEncoderAction(int32_t offset) override;
 	ActionResult buttonAction(hid::Button b, bool on, bool inCardRoutine) override;
-	ActionResult timerCallback() override;
 	void endSession() override;
 	void beginSession(MenuItem* navigatedBackwardFrom) override;
 	/// SELECT on any setting: asks "PRINT NOTES?" - NO / YES with SELECT turned, SELECT again to confirm
 	void selectPressed();
 
 private:
-	int8_t step_ = 0;         // robot animation: 0 = at rest, +1 / -1 = which foot is up
 	bool confirming_ = false; // the PRINT NOTES question is up
 	bool yes_ = false;
 	void drawPrintQuestion();
