@@ -28,5 +28,7 @@ constexpr int32_t kVerticalTitleWidth = 11;
 /// The page name written bottom to top, black on a white strip down the left edge of the OLED (our pages' style).
 /// small: the small font, for longer names
 void drawVerticalTitle(std::string_view title, bool small = false);
+/// The same strip with its own text position (x0), width and top row
+void drawVerticalStrip(std::string_view title, int32_t x0, int32_t stripWidth, int32_t top, bool small);
 
 } // namespace deluge::gui::menu_item

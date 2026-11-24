@@ -32,7 +32,7 @@ constexpr std::array<const char*, NUM_PARAMS> kSaveNames = {"variVelo",    "vari
 constexpr int32_t kMax = 100;
 
 struct Settings {
-	std::array<uint8_t, NUM_PARAMS> amount{0, 0, 0, 0, 0, 0, 100}; // MUT 100 % = a new variation on every pass
+	std::array<uint8_t, NUM_PARAMS> amount{}; // MUT 0 % = the variation drawn is kept, pass after pass
 
 	[[nodiscard]] bool anyVariation() const {
 		for (int32_t p = 0; p < MUT; p++) {

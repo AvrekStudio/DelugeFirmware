@@ -27,12 +27,15 @@ deluge::hid::display::oled_canvas::Canvas scratch;
 } // namespace
 
 void drawVerticalTitle(std::string_view title, bool small) {
+	drawVerticalStrip(title, small ? 3 : 2, kVerticalTitleWidth, OLED_MAIN_TOPMOST_PIXEL, small);
+}
+
+void drawVerticalStrip(std::string_view title, int32_t x0, int32_t stripWidth, int32_t top, bool small) {
 	using deluge::hid::display::OLED;
 	auto& image = OLED::main;
-	constexpr int32_t kLength = OLED_MAIN_VISIBLE_HEIGHT; // room along the strip
+	const int32_t kLength = OLED_MAIN_HEIGHT_PIXELS - top; // room along the strip
 	const int32_t kTextH = small ? kTextSmallSizeY : kTextSizeYUpdated;
 	const int32_t spacingX = small ? kTextSmallSpacingX : kTextSpacingX;
-	const int32_t x0 = small ? 3 : 2;
 
 	scratch.clear();
 	const int32_t width = scratch.getStringWidthInPixels(title.data(), kTextH);
@@ -44,11 +47,11 @@ void drawVerticalTitle(std::string_view title, bool small) {
 		for (int32_t y = 0; y < kTextH; y++) {
 			if ((src[y >> 3][x] >> (y & 7)) & 1) {
 				// reads bottom to top: the text's top faces the left edge
-				image.drawPixel(x0 + y, OLED_MAIN_TOPMOST_PIXEL + (kLength - 1 - x));
+				image.drawPixel(x0 + y, top + (kLength - 1 - x));
 			}
 		}
 	}
-	image.invertArea(0, kVerticalTitleWidth, OLED_MAIN_TOPMOST_PIXEL, OLED_MAIN_HEIGHT_PIXELS - 1);
+	image.invertArea(0, stripWidth, top, OLED_MAIN_HEIGHT_PIXELS - 1);
 }
 
 } // namespace deluge::gui::menu_item
