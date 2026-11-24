@@ -182,6 +182,8 @@ public:
 	void flashDefaultRootNote();
 	void selectEncoderAction(int8_t offset) override;
 	void doubleClipLengthAction();
+	/// PAGE+: the page shown (16 steps of 1/16) added at the end of the clip, undoable
+	void duplicatePageAction();
 	void setSelectedDrum(Drum* drum, bool shouldRedrawStuff = true, Kit* selectedKit = nullptr,
 	                     bool shouldSendMidiFeedback = true);
 	bool isDrumAuditioned(Drum* drum);

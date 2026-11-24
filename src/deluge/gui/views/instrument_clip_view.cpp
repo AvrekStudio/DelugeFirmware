@@ -20,6 +20,7 @@
 #include "extern.h"
 #include "fatfs.hpp"
 #include "gui/colour/colour.h"
+#include "gui/context_menu/duplicate_clip.h"
 #include "gui/context_menu/stem_export/cancel_stem_export.h"
 #include "gui/l10n/l10n.h"
 #include "gui/menu_item/colour.h"
@@ -741,14 +742,10 @@ ActionResult InstrumentClipView::buttonAction(deluge::hid::Button b, bool on, bo
 					pasteNotes(false);
 				}
 				else {
-					// Zoom to max if we weren't already there...
-
-					if (!zoomToMax()) {
-						// Or if we didn't need to do that, double Clip length
-						doubleClipLengthAction();
-					}
-					else {
-						displayZoomLevel();
+					// Duplicate the page shown (PAGE+) or the whole sequence (SEQUENCE, which zooms out to it)?
+					if (context_menu::duplicateClip.setupAndCheckAvailability()) {
+						openUI(&context_menu::duplicateClip);
+						return ActionResult::DEALT_WITH;
 					}
 				}
 			}
@@ -1716,6 +1713,62 @@ getOut: {}
 	pasteNotes(overwriteExisting, true, noScaling, previewOnly, selectedDrumOnly);
 
 	return Error::NONE;
+}
+
+void InstrumentClipView::duplicatePageAction() {
+	// A page = 16 steps of 1/16 (one 4/4 bar), whatever the grid's zoom
+	InstrumentClip* clip = getCurrentInstrumentClip();
+	const int32_t page = currentSong->getBarLength();
+	const int32_t oldLength = clip->loopLength;
+	if (page <= 0 || oldLength > kMaxSequenceLength - page) {
+		display->displayPopup(deluge::l10n::get(deluge::l10n::String::STRING_FOR_MAXIMUM_LENGTH_REACHED));
+		return;
+	}
+	// The page shown: the one the grid's left edge is in
+	const int32_t pageStart = (currentSong->xScroll[NAVIGATION_CLIP] / page) * page;
+
+	Action* action = actionLogger.getNewAction(ActionType::CLIP_LENGTH_INCREASE, ActionAddition::NOT_ALLOWED);
+	currentSong->setClipLength(clip, oldLength + page, action);
+
+	char modelStackMemory[MODEL_STACK_MAX_SIZE];
+	ModelStackWithTimelineCounter* modelStack = currentSong->setupModelStackWithCurrentClip(modelStackMemory);
+	for (int32_t r = 0; r < clip->noteRows.getNumElements(); r++) {
+		NoteRow* row = clip->noteRows.getElement(r);
+		if (row->loopLengthIfIndependent) {
+			continue; // a row with its own length keeps looping it
+		}
+		ModelStackWithNoteRow* rowStack = modelStack->addNoteRow(clip->getNoteRowId(row, r), row);
+		const int32_t numNotes = row->notes.getNumElements();
+		// The notes as the clip loops through the page shown (a clip shorter than a page repeats in it)
+		struct Copy {
+			int32_t pos, length, velocity, probability, fill;
+			Iterance iterance;
+		};
+		static Copy copies[256];
+		int32_t count = 0;
+		for (int32_t i = 0; i < numNotes; i++) {
+			Note* n = row->notes.getElement(i);
+			for (int32_t q = n->pos - (n->pos / oldLength) * oldLength; q < pageStart + page; q += oldLength) {
+				if (q >= pageStart && count < 256) {
+					copies[count++] = {oldLength + (q - pageStart), n->length,    n->velocity,
+					                   n->getProbability(),         n->getFill(), n->getIterance()};
+				}
+			}
+		}
+		for (int32_t i = 0; i < count; i++) {
+			const Copy& c = copies[i];
+			const int32_t length = std::min(c.length, oldLength + page - c.pos);
+			row->attemptNoteAdd(c.pos, std::max<int32_t>(1, length), c.velocity, c.probability, c.iterance, c.fill,
+			                    rowStack, action);
+		}
+	}
+	uiNeedsRendering(this);
+	if (display->haveOLED()) {
+		display->consoleText("Page added");
+	}
+	else {
+		display->displayPopup("PAGE");
+	}
 }
 
 void InstrumentClipView::doubleClipLengthAction() {
