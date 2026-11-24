@@ -228,6 +228,7 @@
 #include "gui/menu_item/unison/stereoSpread.h"
 #include "gui/menu_item/unpatched_param.h"
 #include "gui/menu_item/unpatched_param/pan.h"
+#include "gui/menu_item/vari/vari_menus.h"
 #include "gui/menu_item/voice/polyphony.h"
 #include "gui/menu_item/voice/portamento.h"
 #include "gui/menu_item/voice/priority.h"
@@ -1549,13 +1550,27 @@ PLACE_SDRAM_BSS chord_mode::Screen chordModeMenu{
     STRING_FOR_CHORD_MODE,
     {&chordModeModeMenu, &chordModeTypeMenu, &chordModeStrumMenu, &chordModeBassMenu}};
 
+// VARI: live variations of the grid's notes (grid -> VARI -> CHORD -> ARP)
+PLACE_SDRAM_BSS gui::menu_item::vari::Chance variChanceMenu{STRING_FOR_RANDOM};
+PLACE_SDRAM_BSS gui::menu_item::vari::Amount variVeloMenu{STRING_FOR_VELOCITY, deluge::vari::VELO};
+PLACE_SDRAM_BSS gui::menu_item::vari::Amount variNoteMenu{STRING_FOR_NOTE, deluge::vari::NOTE};
+PLACE_SDRAM_BSS gui::menu_item::vari::Amount variOctMenu{STRING_FOR_NUMBER_OF_OCTAVES, deluge::vari::OCT};
+PLACE_SDRAM_BSS gui::menu_item::vari::Amount variGateMenu{STRING_FOR_GATE, deluge::vari::GATE};
+PLACE_SDRAM_BSS gui::menu_item::vari::Amount variRatchetMenu{STRING_FOR_VARI, deluge::vari::RATC};
+PLACE_SDRAM_BSS gui::menu_item::vari::Amount variHumanMenu{STRING_FOR_VARI, deluge::vari::HUMN};
+PLACE_SDRAM_BSS gui::menu_item::vari::Amount variMutateMenu{STRING_FOR_VARI, deluge::vari::MUT};
+PLACE_SDRAM_BSS TwoRowMenu variMenu{STRING_FOR_VARI,
+                                    {&variChanceMenu, &variVeloMenu, &variNoteMenu, &variOctMenu, &variGateMenu,
+                                     &variRatchetMenu, &variHumanMenu, &variMutateMenu}};
+
 PLACE_SDRAM_BSS Submenu soundEditorRootMenu{
     STRING_FOR_SOUND,
     {
         &soundEditorRootActionsMenu,
         &soundMasterMenu,
-        &arpTwoRowMenu,
+        &variMenu,
         &chordModeMenu,
+        &arpTwoRowMenu,
         &randomizerMenu,
         &audioCompMenu,
         &soundFiltersMenu,

@@ -569,6 +569,7 @@ PLACE_SDRAM_DATA Language seven_segment{
         {STRING_FOR_DEFAULT_NOTE_LENGTH, "LEN"},
         {STRING_FOR_CHORD_MODE, "CHRD"},
         {STRING_FOR_STRUM, "STRM"},
+        {STRING_FOR_VARI, "VARI"},
     },
     &built_in::english,
 };

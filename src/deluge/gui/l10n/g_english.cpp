@@ -1018,6 +1018,7 @@ PLACE_SDRAM_DATA Language english{
         {STRING_FOR_DEFAULT_NOTE_LENGTH, "Note length"},
         {STRING_FOR_CHORD_MODE, "Chord mode"},
         {STRING_FOR_STRUM, "Strum"},
+        {STRING_FOR_VARI, "Vari"},
     },
 };
 } // namespace deluge::l10n::built_in

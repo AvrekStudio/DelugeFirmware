@@ -84,10 +84,24 @@ bool Instrument::writeDataToFile(Serializer& writer, Clip* clipForSavingOutputOn
 		writer.writeAttribute("noteLen", noteDefaults.lenQuarters);
 		writer.writeAttribute("defaultNote", noteDefaults.note);
 		writer.writeAttribute("noteChance", noteDefaults.chance);
+		for (int32_t p = 0; p < deluge::vari::NUM_PARAMS; p++) {
+			writer.writeAttribute(deluge::vari::kSaveNames[p], vari.amount[p]);
+		}
 	}
 
 	return Output::writeDataToFile(writer, clipForSavingOutputOnly, song);
 }
+
+namespace {
+int32_t variParamFromName(const char* tagName) {
+	for (int32_t p = 0; p < deluge::vari::NUM_PARAMS; p++) {
+		if (!strcmp(tagName, deluge::vari::kSaveNames[p])) {
+			return p;
+		}
+	}
+	return -1;
+}
+} // namespace
 
 bool Instrument::readTagFromFile(Deserializer& reader, char const* tagName) {
 
@@ -133,6 +147,11 @@ bool Instrument::readTagFromFile(Deserializer& reader, char const* tagName) {
 	else if (!strcmp(tagName, "noteChance")) {
 		noteDefaults.chance = static_cast<uint8_t>(
 		    std::clamp<int32_t>(reader.readTagOrAttributeValueInt(), 0, deluge::track_defaults::kChanceMax));
+	}
+
+	else if (const int32_t p = variParamFromName(tagName); p >= 0) {
+		vari.amount[p] =
+		    static_cast<uint8_t>(std::clamp<int32_t>(reader.readTagOrAttributeValueInt(), 0, deluge::vari::kMax));
 	}
 
 	else if (!strcmp(tagName, "presetFolder")) {

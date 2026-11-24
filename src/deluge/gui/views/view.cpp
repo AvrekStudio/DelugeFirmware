@@ -2517,6 +2517,7 @@ void View::navigateThroughPresetsForInstrumentClip(int32_t offset, ModelStackWit
 				// And, we'd better copy the default velocity too
 				newInstrument->defaultVelocity = oldNonAudioInstrument->defaultVelocity;
 				newInstrument->noteDefaults = oldNonAudioInstrument->noteDefaults;
+				newInstrument->vari = oldNonAudioInstrument->vari;
 			}
 gotAnInstrument:
 
@@ -2611,6 +2612,7 @@ getOut:
 			// If that Instrument wasn't already in use in the Song, copy default velocity over
 			newInstrument->defaultVelocity = oldInstrument->defaultVelocity;
 			newInstrument->noteDefaults = oldInstrument->noteDefaults;
+			newInstrument->vari = oldInstrument->vari;
 
 			// If we're here, we know the Clip is not playing in the arranger (and doesn't even have an instance in
 			// there)

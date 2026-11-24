@@ -21,6 +21,7 @@
 #include "io/midi/learned_midi.h"
 #include "model/clip/clip_instance_vector.h"
 #include "model/instrument/track_note_defaults.h"
+#include "model/instrument/vari_settings.h"
 #include "model/output.h"
 #include "storage/flash_storage.h"
 
@@ -90,6 +91,8 @@ public:
 	uint8_t defaultVelocity = FlashStorage::defaultVelocity;
 	/// MASTER menu, second row: LEN / NOTE / RAND
 	deluge::track_defaults::NoteDefaults noteDefaults;
+	/// VARI (SOUND menu): live variations of the grid's notes
+	deluge::vari::Settings vari;
 	LearnedMIDI midiInput;
 
 protected:

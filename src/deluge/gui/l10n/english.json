@@ -1004,6 +1004,7 @@
     "STRING_FOR_ARP_SHORT_TITLE": "ARP",
     "STRING_FOR_DEFAULT_NOTE_LENGTH": "Note length",
     "STRING_FOR_CHORD_MODE": "Chord mode",
-    "STRING_FOR_STRUM": "Strum"
+    "STRING_FOR_STRUM": "Strum",
+    "STRING_FOR_VARI": "Vari"
   }
 }
