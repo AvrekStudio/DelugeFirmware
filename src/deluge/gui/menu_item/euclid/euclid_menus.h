@@ -17,6 +17,7 @@
 
 #pragma once
 
+#include "gui/menu_item/horizontal_menu.h"
 #include "gui/menu_item/integer.h"
 #include "gui/menu_item/selection.h"
 #include "gui/menu_item/toggle.h"
@@ -72,10 +73,20 @@ public:
 	[[nodiscard]] std::string_view getName() const override { return "OP"; }
 };
 
+/// The note row editor's page 1 (PLAY PROB ITER FILL): CROSS / SCALE go to page 2, EUC
+class RowEditorMenu final : public HorizontalMenu {
+public:
+	using HorizontalMenu::HorizontalMenu;
+	[[nodiscard]] std::string_view getTitle() const override { return "ROW EDITOR 1/2"; }
+	void renderOLED() override;
+};
+
+/// The note row editor's page 2
 class Screen final : public TwoRowMenu {
 public:
 	using TwoRowMenu::TwoRowMenu;
 	[[nodiscard]] std::string_view getTitle() const override { return "EUC"; }
+	void renderOLED() override;
 	[[nodiscard]] std::string_view getName() const override { return "EUC"; }
 	/// SELECT (or LOAD): EUC on / off
 	void selectPressed();

@@ -2261,6 +2261,15 @@ bool SoundEditor::inNoteRowEditor() {
 	return (menuItemNavigationRecord[0] == &noteRowEditorRootMenu) || inEuclidEditor();
 }
 
+void SoundEditor::switchRootMenu(MenuItem* item) {
+	endScreen();
+	navigationDepth = 0;
+	shouldGoUpOneLevelOnBegin = false;
+	menuItemNavigationRecord[0] = item;
+	display->setNextTransitionDirection(0);
+	beginScreen();
+}
+
 bool SoundEditor::inEuclidEditor() {
 	return menuItemNavigationRecord[0] == &menu_item::euclid::euclidScreen;
 }

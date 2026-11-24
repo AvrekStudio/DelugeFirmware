@@ -185,8 +185,6 @@ public:
 	void doubleClipLengthAction();
 	/// PAGE+: the page shown (16 steps of 1/16) added at the end of the clip, undoable
 	void duplicatePageAction();
-	/// AUD held + horizontal encoder pressed, not turned yet: its release opens / closes the EUC page
-	bool euclidPressPending_ = false;
 	void setSelectedDrum(Drum* drum, bool shouldRedrawStuff = true, Kit* selectedKit = nullptr,
 	                     bool shouldSendMidiFeedback = true);
 	bool isDrumAuditioned(Drum* drum);

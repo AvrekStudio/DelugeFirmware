@@ -72,6 +72,7 @@
 #include "gui/menu_item/envelope/segment.h"
 #include "gui/menu_item/eq/eq_menu.h"
 #include "gui/menu_item/eq/eq_unpatched_param.h"
+#include "gui/menu_item/euclid/euclid_menus.h"
 #include "gui/menu_item/file_selector.h"
 #include "gui/menu_item/filter/filter_container.h"
 #include "gui/menu_item/filter/mode.h"
@@ -1720,13 +1721,13 @@ PLACE_SDRAM_BSS note_row::IterancePreset noteRowIteranceMenu{STRING_FOR_NOTE_ROW
 PLACE_SDRAM_BSS note_row::Fill noteRowFillMenu{STRING_FOR_NOTE_ROW_EDITOR_FILL};
 
 // Root menu for Note Row Editor
-PLACE_SDRAM_BSS HorizontalMenu noteRowEditorRootMenu{STRING_FOR_NOTE_ROW_EDITOR,
-                                                     {
-                                                         &sequenceDirectionMenu,
-                                                         &noteRowProbabilityMenu,
-                                                         &noteRowIteranceMenu,
-                                                         &noteRowFillMenu,
-                                                     }};
+PLACE_SDRAM_BSS menu_item::euclid::RowEditorMenu noteRowEditorRootMenu{STRING_FOR_NOTE_ROW_EDITOR,
+                                                                       {
+                                                                           &sequenceDirectionMenu,
+                                                                           &noteRowProbabilityMenu,
+                                                                           &noteRowIteranceMenu,
+                                                                           &noteRowFillMenu,
+                                                                       }};
 
 PLACE_SDRAM_BSS menu_item::midi::ProgramSubMenu midiProgramMenu{STRING_FOR_MIDI_PROGRAM_MENU_TITLE,
                                                                 {

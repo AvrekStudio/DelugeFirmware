@@ -16,10 +16,13 @@
  */
 
 #include "gui/menu_item/euclid/euclid_menus.h"
+#include "gui/menu_item/vertical_title.h"
 #include "gui/ui/sound_editor.h"
 #include "gui/ui/ui.h"
 #include "gui/views/instrument_clip_view.h"
 #include "hid/display/display.h"
+#include "hid/display/oled.h"
+#include "hid/led/indicator_leds.h"
 #include "model/clip/instrument_clip.h"
 #include "model/model_stack.h"
 #include "model/note/euclid.h"
@@ -220,6 +223,29 @@ Operator op{};
 
 Screen euclidScreen{
     l10n::String::EMPTY_STRING, l10n::String::EMPTY_STRING, {&pl1, &pl2, &len, &enabled, &ro1, &ro2, &tro, &op}};
+
+namespace {
+/// CROSS / SCALE lit: they switch between the 2 pages
+void lightPageButtons() {
+	indicator_leds::setLedState(IndicatorLED::SCALE_MODE, true);
+	indicator_leds::setLedState(IndicatorLED::CROSS_SCREEN_EDIT, true);
+}
+} // namespace
+
+void RowEditorMenu::renderOLED() {
+	HorizontalMenu::renderOLED();
+	lightPageButtons();
+}
+
+void Screen::renderOLED() {
+	TwoRowMenu::renderOLED();
+	// the strip says the page too, in the small font to fit
+	auto& image = deluge::hid::display::OLED::main;
+	image.clearAreaExact(0, OLED_MAIN_TOPMOST_PIXEL, kVerticalTitleWidth, OLED_MAIN_HEIGHT_PIXELS - 1);
+	drawVerticalTitle("EUC 2/2", true);
+	deluge::hid::display::OLED::markChanged();
+	lightPageButtons();
+}
 
 void Screen::selectPressed() {
 	char memory[MODEL_STACK_MAX_SIZE];

@@ -2,6 +2,7 @@
 #include "gui/menu_item/audio_clip/audio_source_selector.h"
 #include "gui/menu_item/audio_clip/sample_marker_editor.h"
 #include "gui/menu_item/edit_name.h"
+#include "gui/menu_item/euclid/euclid_menus.h"
 #include "gui/menu_item/filter/param.h"
 #include "gui/menu_item/firmware/version.h"
 #include "gui/menu_item/note/fill.h"
@@ -92,7 +93,7 @@ extern gui::menu_item::note::IteranceStepToggle noteCustomIteranceStep7;
 extern gui::menu_item::note::IteranceStepToggle noteCustomIteranceStep8;
 extern gui::menu_item::note::Fill noteFillMenu;
 // note row editor menu's
-extern gui::menu_item::HorizontalMenu noteRowEditorRootMenu;
+extern gui::menu_item::euclid::RowEditorMenu noteRowEditorRootMenu;
 extern gui::menu_item::note_row::Probability noteRowProbabilityMenu;
 extern gui::menu_item::note_row::IterancePreset noteRowIteranceMenu;
 extern gui::menu_item::note_row::IteranceDivisor noteRowCustomIteranceDivisor;

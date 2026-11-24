@@ -767,27 +767,8 @@ doCancelPopup:
 				}
 			}
 			else if (isUIModeActive(UI_MODE_AUDITIONING)) {
-				if (on) {
-					euclidPressPending_ = isUIModeActiveExclusively(UI_MODE_AUDITIONING);
-				}
-				else {
+				if (!on) {
 					timeHorizontalKnobLastReleased = AudioEngine::audioSampleTimer;
-					// AUD + a click (no turn) of the horizontal encoder: the row's EUC page (opened / closed)
-					if (euclidPressPending_) {
-						if (inCardRoutine) {
-							return ActionResult::REMIND_ME_OUTSIDE_CARD_ROUTINE;
-						}
-						euclidPressPending_ = false;
-						exitUIMode(UI_MODE_HOLDING_HORIZONTAL_ENCODER_BUTTON);
-						display->cancelPopup();
-						if (getCurrentUI() == &soundEditor && soundEditor.inEuclidEditor()) {
-							soundEditor.exitCompletely();
-						}
-						else if (getCurrentUI() == this) {
-							enterNoteRowEditor(&deluge::gui::menu_item::euclid::euclidScreen);
-						}
-						return ActionResult::DEALT_WITH;
-					}
 					goto doCancelPopup;
 				}
 			}
@@ -4195,6 +4176,19 @@ ActionResult InstrumentClipView::handleNoteRowEditorHorizontalEncoderAction(int3
 ActionResult InstrumentClipView::handleNoteRowEditorButtonAction(deluge::hid::Button b, bool on, bool inCardRoutine) {
 	using namespace deluge::hid::button;
 
+	// CROSS / SCALE: page 1 (PLAY PROB ITER FILL) <-> page 2 (EUC)
+	if (util::one_of<hid::Button>(b, {CROSS_SCREEN_EDIT, SCALE_MODE})) {
+		if (on) {
+			if (inCardRoutine) {
+				return ActionResult::REMIND_ME_OUTSIDE_CARD_ROUTINE;
+			}
+			soundEditor.switchRootMenu(soundEditor.inEuclidEditor()
+			                               ? static_cast<MenuItem*>(&noteRowEditorRootMenu)
+			                               : static_cast<MenuItem*>(&deluge::gui::menu_item::euclid::euclidScreen));
+		}
+		return ActionResult::DEALT_WITH;
+	}
+
 	// the EUC page: SYNC-SCALING / TRIPLETS pick its row, LOAD switches EUC on / off
 	if (soundEditor.inEuclidEditor() && util::one_of<hid::Button>(b, {SYNC_SCALING, TRIPLETS, LOAD})) {
 		return soundEditor.getCurrentMenuItem()->buttonAction(b, on, inCardRoutine);
@@ -6904,7 +6898,6 @@ void InstrumentClipView::rotateNoteRowHorizontally(int32_t offset) {
 	        ->getNoteRowOnScreen(lastAuditionedYDisplay, modelStack); // Don't create
 
 	rotateNoteRowHorizontally(modelStackWithNoteRow, offset, lastAuditionedYDisplay, true);
-	euclidPressPending_ = false; // it was a press-and-turn, not a click
 	// So don't accidentally shorten row after
 	shouldIgnoreHorizontalScrollKnobActionIfNotAlsoPressedForThisNotePress = true;
 	editedAnyPerNoteRowStuffSinceAuditioningBegan = true;
